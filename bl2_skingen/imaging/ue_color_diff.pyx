@@ -21,6 +21,15 @@ cdef np.uint8_t col_median(np.uint8_t a, np.uint8_t b, np.uint8_t percentage):
 	# Returns median value between input values; if percentage is 0, return a, if percentage is 255 return b
 	return scale_int(a, (255 - percentage)) + scale_int(b, percentage)
 
+cdef np.uint8_t swoop(np.uint8_t a, np.uint8_t b):
+	# Fancy mathematics, can certainly be optimized.
+	if a == 0 and b == 0:
+		return 127
+	if a >= b:
+		return 128+int((1-(b/a))*127)
+	else:
+		return 127-int((1-(a/b))*127)
+
 @cython.boundscheck(False)
 @cython.wraparound(False)
 cdef ue_color_diff_body(dict col_dict, np.ndarray[DTYPE_t, ndim = 3] res,
@@ -100,7 +109,6 @@ cpdef ue_color_diff(np.ndarray[DTYPE_t, ndim = 3] hard_mask, np.ndarray[DTYPE_t,
 
 	cdef np.ndarray[DTYPE_t, ndim = 3] res = np.ndarray([hard_mask.shape[0], hard_mask.shape[1], 4], dtype = DTYPE)
 
-
 	cdef np.uint8_t rgb # channel iterator variable
 	cdef np.uint8_t ccol # current color
 	cdef np.uint8_t c0 # calculation storage
@@ -136,14 +144,10 @@ cpdef ue_color_diff(np.ndarray[DTYPE_t, ndim = 3] hard_mask, np.ndarray[DTYPE_t,
 			else:
 				res[y, x, 3] = 0x00
 				continue
-			if soft_mask[y, x, 1] >= soft_mask[y, x, 0]:
-				dif = 127 + (127)
-			else:
-				dif = 
+			dif = swoop(soft_mask[y, x, 0], soft_mask[y, x, 1])
 			for rgb in range(3):
 				c0 = col_median(colors[ccol, 1, rgb], colors[ccol, 0, rgb], soft_mask[y, x, 1])
 				c1 = col_median(colors[ccol, 1, rgb], colors[ccol, 2, rgb], soft_mask[y, x, 0])
 				res[y, x, rgb] = col_median(c0, c1, dif)
-			
 
 	return res

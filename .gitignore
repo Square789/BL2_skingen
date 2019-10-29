@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+*.lock
 test_scrn/
 test*.png
 bl2_skingen/imaging/*.html

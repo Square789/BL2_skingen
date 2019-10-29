@@ -40,10 +40,6 @@ MAP_COLOR_TO_IDX = {"A":0, "B":1, "C":2}
 MAP_NAME_TO_IDX = {"shadow":0, "midtone":1, "hilight":2}
 MAP_CHNL_TO_IDX = {"R":0, "G":1, "B":2, "A":3}
 
-
-#logging.basicConfig(stream = sys.stdout, level = 0, format =
-#	"{levelname:10}: {message}", style = "{",
-#)
 logging.getLogger().setLevel(0) # this magically works, whoop-de-doo
 
 class Bodypart():
@@ -84,27 +80,41 @@ class SkinGenerator():
 
 		self.logger = SKINGEN_LOGGER
 		log_hdlr = logging.StreamHandler(sys.stdout)
-		fmtr = logging.Formatter("{levelname:10}: {message}", None, "{")
+		fmtr = logging.Formatter("{message}", None, "{")
 		log_hdlr.setFormatter(fmtr)
 		self.logger.addHandler(log_hdlr)
-		self.logger.setLevel(9 + (silence * 10))
+		self.logger.setLevel(18 + (silence * 3))
 
 		self._determine_params()
 
+	def _determine_params(self):
+		for i in CLASSES:
+			if i in self.in_dir.stem:
+				self.class_ = i
+				break
+		else:
+			raise ValueError("Unable to find class in path name: " + self.in_dir.stem)
+		try:
+			tmp = self.in_dir.stem.split("_")
+			self.skin_name = tmp[3]
+			self.skin_type = tmp[2]
+		except IndexError:
+			raise ValueError("Path not conforming to expected format.")
+
 	def run(self):
 		"""Do the thing."""
-		self.logger.log(20, f"Input directory: {self.in_dir}")
-		self.logger.log(20, f"Output directory: {self.out_dir}")
-		self.logger.log(20, f"Seeking for mat and props files...")
+		self.logger.log(22, f"Input directory: {self.in_dir}")
+		self.logger.log(22, f"Output directory: {self.out_dir}")
+		self.logger.log(22, f"Seeking for mat and props files...")
 		self._locate_files()
-		self.logger.log(20, f"Parsing material files and getting textures...")
+		self.logger.log(22, f"Parsing material files and getting textures...")
 		self._get_textures()
-		self.logger.log(20, f"Reading decal pos and color information...")
+		self.logger.log(22, f"Reading decal pos and color information...")
 		self._read_props_files()
-		self.logger.log(20, f"Generating body file...")
+		self.logger.log(22, f"===Generating body file===")
 		self._generate_image(self.body)
 		# raise NotImplementedError()
-		self.logger.log(20, f"Generating head file...")
+		self.logger.log(22, f"===Generating head file===")
 		self._generate_image(self.head)
 
 	@staticmethod
@@ -146,20 +156,6 @@ class SkinGenerator():
 			y_offset += 1
 			cname_i += 1
 		palette_img.save(Path(self.out_dir, "palette.png"))
-
-	def _determine_params(self):
-		for i in CLASSES:
-			if i in self.in_dir.stem:
-				self.class_ = i
-				break
-		else:
-			raise ValueError("Unable to find class in path name: " + self.in_dir.stem)
-		try:
-			tmp = self.in_dir.stem.split("_")
-			self.skin_name = tmp[3]
-			self.skin_type = tmp[2]
-		except IndexError:
-			raise ValueError("Path not conforming to expected format.")
 
 	def _locate_files(self):
 		"""Seeks and confirms existence of the mat and props files."""
@@ -249,32 +245,23 @@ class SkinGenerator():
 					[MAP_NAME_TO_IDX[color_name_match[2].lower()]] = \
 					nrm_colors
 
-		self.logger.log(10, f"Color infs:\n{colors}")
-
-		self.logger.log(10, f"Dumping color palette...")
+		######DEBUG BLOCK
+		self.logger.log(19, f"Color infs:\n{colors}")
+		self.logger.log(19, f"Dumping color palette...")
 		self.dump_color_palette(colors)
 
-		zero_if_black = lambda x: 0 if x < 128 else 255
-
-		self.logger.log(20, f"Generating overlay image...")
+		self.logger.log(22, f"Generating overlay image...")
 		hard_mask_arr = numpy.array(hard_mask)
 		soft_mask_arr = numpy.array(soft_mask)
 		overlay_res = ue_color_diff(hard_mask_arr, soft_mask_arr, colors)
 		overlay_img = Image.fromarray(overlay_res, mode = "RGBA")
-		self.logger.log(10, f"Showing overlay image...")
-		overlay_img.show()
+		self.logger.log(19, f"Writing overlay image...")
+		overlay_img.save(f"overlay_{part.lwr}.png")
 
-		#dif_img.convert("RGBA")
-		self.logger.log(20, f"Merging overlay and base image...")
+		self.logger.log(22, f"Merging overlay and base image...")
 		dif_img_arr = numpy.array(dif_img)
-		self.logger.log(20, f"Saving generated texture...")
+		self.logger.log(22, f"Saving generated texture...")
 		Image.fromarray(multiply(overlay_res, dif_img_arr)).save(f"final_{part.lwr}.png")
-
-		# full_blue_arr = numpy.array(Image.new("RGB", (2048, 2048), (10, 0, 180)))
-		# print(time.time())
-		# tmp = overlay_3D(dif_img_arr, full_blue_arr)
-		# print(time.time())
-		# Image.fromarray(tmp).show() #Test overlay
 
 argparser = argparse.ArgumentParser()
 
