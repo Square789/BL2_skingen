@@ -260,7 +260,7 @@ class SkinGenerator():
 
 		######DEBUG BLOCK
 		self.logger.log(19, f"Color infs:\n{colors}")
-		self.dump_color_palette(colors)
+		#self.dump_color_palette(colors)
 
 		self.logger.log(25, f"Generating overlay image...")
 		hard_mask_arr = numpy.array(hard_mask)
