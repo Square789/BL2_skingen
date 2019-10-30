@@ -59,15 +59,14 @@ class Bodypart():
 
 	def __init__(self, name):
 		self.name = name
-
+	def __format__(self, idk):
+		return self.lwr
 	@property
 	def cap(self):
 		return self.name.capitalize()
-
 	@property
 	def lwr(self):
 		return self.name.lower()
-
 	@property
 	def upr(self):
 		return self.name.upper()
@@ -88,7 +87,8 @@ class SkinGenerator():
 		fmtr = logging.Formatter("{message}", None, "{")
 		log_hdlr.setFormatter(fmtr)
 		self.logger.addHandler(log_hdlr)
-		self.logger.setLevel(18 + (silence * 3))
+		if silence > 3: silence = 3
+		self.logger.setLevel(21 + (silence * 3))
 
 		self._determine_params()
 
@@ -235,6 +235,7 @@ class SkinGenerator():
 		self.logger.log(20, f"Reading and converting color information...")
 
 		colors = numpy.ndarray((3, 3, 4), dtype = numpy.uint8)
+		colors[:] = 255 # Sometimes, colors are not specified, set them to full then
 		# [0]: A, [1]: B, [2]: C
 		# [x][0]: "shadow", [x][1]: "mid", [x][2]: "hilight"
 		# [x][y][0]: R, [x][y][1]: G, [x][y][2]: B, [x][y][3]: A
@@ -258,40 +259,49 @@ class SkinGenerator():
 					nrm_colors
 
 		######DEBUG BLOCK
-		#self.logger.log(19, f"Color infs:\n{colors}")
-		#self.logger.log(19, f"Dumping color palette...")
-		#self.dump_color_palette(colors)
+		self.logger.log(19, f"Color infs:\n{colors}")
+		self.dump_color_palette(colors)
 
 		self.logger.log(25, f"Generating overlay image...")
 		hard_mask_arr = numpy.array(hard_mask)
 		soft_mask_arr = numpy.array(soft_mask)
-		overlay_res = ue_color_diff(hard_mask_arr, soft_mask_arr, colors)
-		overlay_img = Image.fromarray(overlay_res, mode = "RGBA")
-		self.logger.log(19, f"Writing overlay image...")
-		#overlay_img.save(f"overlay_{part.lwr}.png"))
+		overlay_arr = ue_color_diff(hard_mask_arr, soft_mask_arr, colors)
 
 		self.logger.log(25, f"Merging overlay and base image...")
 		dif_img_arr = numpy.array(dif_img)
-		final_arr = multiply(overlay_res, dif_img_arr)
+		final_arr = multiply(overlay_arr, dif_img_arr)
 		self.logger.log(25, f"Saving generated texture...")
-		Image.fromarray(final_arr).save(Path(self.out_dir, f"final_{part.lwr}.png"))
+		targetpath = Path(self.out_dir, f"final_{part.lwr}.png")
+		Image.fromarray(final_arr).save(targetpath)
 
-argparser = argparse.ArgumentParser()
 
-argparser.add_argument("-in", default = os.getcwd(), dest = "in_", help = """
-	Input directory from the extracted Unreal Package. It should follow a
-	format like CD_<Class>_Skin_<Skin_name>_SF .
-""")
-argparser.add_argument("-out", "-o", default = os.getcwd())
-argparser.add_argument("-noask", default = False, help = """
-	On certain uncertanties (overwriting files etc.) do not prompt the user to
-	confirm/cancel an operation, always pick the one that resumes execution.
-""")
-argparser.add_argument("-s", default = 0, action = "count", dest = "silence", help = """
-	Shut the script up to varying degrees (-s, -ss, -sss)
-""")
+if __name__ == "__main__":
+	argparser = argparse.ArgumentParser()
 
-args = argparser.parse_args()
+	argparser.add_argument("-in", default = os.getcwd(), dest = "in_", help = """
+		Input directory from the extracted Unreal Package. It should follow a
+		format like CD_<Class>_Skin_<Skin_name>_SF .
+	""")
+	argparser.add_argument("-out", "-o", default = os.getcwd(), help = """
+		Directory to save generated files to.
+	""")
+	# argparser.add_argument("-noask", default = False, help = """
+	# 	On certain uncertanties (overwriting files etc.) do not prompt the user to
+	# 	confirm/cancel an operation, always pick the one that resumes execution.
+	# """)
+	argparser.add_argument("-s", default = 0, action = "count", dest = "silence", help = """
+		Shut the script up to varying degrees (-s, -ss, -sss)
+	""")
+	argparser.add_argument("-debug", default = 0, action = "count", dest = "debug", help = """
+		Decreases the logging threshold by 6. Basically counteracts two "-s".
+	""")
 
-sg = SkinGenerator(in_dir = args.in_, out_dir = args.out, no_ask = args.noask, silence = args.silence)
-sg.run()
+	if len(sys.argv) == 1:
+		argparser.print_help()
+		exit()
+
+	args = argparser.parse_args()
+
+	sg = SkinGenerator(in_dir = args.in_, out_dir = args.out, no_ask = None,
+			silence = (args.silence - (args.debug * 2)))
+	sg.run()

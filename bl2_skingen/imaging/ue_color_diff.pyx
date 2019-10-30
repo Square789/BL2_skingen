@@ -1,8 +1,8 @@
+# cython: profile=True
+
 import cython
 import numpy as np
 cimport numpy as np
-
-from libc.math cimport abs
 
 np.import_array()
 
@@ -22,74 +22,13 @@ cdef np.uint8_t col_median(np.uint8_t a, np.uint8_t b, np.uint8_t percentage):
 	return scale_int(a, (255 - percentage)) + scale_int(b, percentage)
 
 cdef np.uint8_t swoop(np.uint8_t a, np.uint8_t b):
-	# Fancy mathematics, can certainly be optimized.
+	# Fancy mathematics, possibly optimizable just a bit more.
 	if a == 0 and b == 0:
 		return 127
 	if a >= b:
-		return 128+int((1-(b/a))*127)
+		return 127+int((1-(b/a))*128)
 	else:
 		return 127-int((1-(a/b))*127)
-
-@cython.boundscheck(False)
-@cython.wraparound(False)
-cdef ue_color_diff_body(dict col_dict, np.ndarray[DTYPE_t, ndim = 3] res,
-		np.ndarray[DTYPE_t, ndim = 3] h_msk, np.ndarray[DTYPE_t, ndim = 3] s_msk):
-	# if res, hard_mask and soft_mask are not same size here, then idk man reevaluate the universe you live in.
-	cdef int w, h, y, x
-	cdef int AmidR = col_dict["A"]["midtone"]["R"]
-	cdef int AmidG = col_dict["A"]["midtone"]["G"]
-	cdef int AmidB = col_dict["A"]["midtone"]["B"]
-	cdef int AshdR = col_dict["A"]["shadow"]["R"]
-	cdef int AshdG = col_dict["A"]["shadow"]["G"]
-	cdef int AshdB = col_dict["A"]["shadow"]["B"]
-	cdef int AhilR = col_dict["A"]["hilight"]["R"]
-	cdef int AhilG = col_dict["A"]["hilight"]["G"]
-	cdef int AhilB = col_dict["A"]["hilight"]["B"]
-	cdef int BmidR = col_dict["B"]["midtone"]["R"]
-	cdef int BmidG = col_dict["B"]["midtone"]["G"]
-	cdef int BmidB = col_dict["B"]["midtone"]["B"]
-	cdef int BshdR = col_dict["B"]["shadow"]["R"]
-	cdef int BshdG = col_dict["B"]["shadow"]["G"]
-	cdef int BshdB = col_dict["B"]["shadow"]["B"]
-	cdef int BhilR = col_dict["B"]["hilight"]["R"]
-	cdef int BhilG = col_dict["B"]["hilight"]["G"]
-	cdef int BhilB = col_dict["B"]["hilight"]["B"]
-	cdef int CmidR = col_dict["C"]["midtone"]["R"]
-	cdef int CmidG = col_dict["C"]["midtone"]["G"]
-	cdef int CmidB = col_dict["C"]["midtone"]["B"]
-	cdef int CshdR = col_dict["C"]["shadow"]["R"]
-	cdef int CshdG = col_dict["C"]["shadow"]["G"]
-	cdef int CshdB = col_dict["C"]["shadow"]["B"]
-	cdef int ChilR = col_dict["C"]["hilight"]["R"]
-	cdef int ChilG = col_dict["C"]["hilight"]["G"]
-	cdef int ChilB = col_dict["C"]["hilight"]["B"] # :yes:
-
-	w = res.shape[1]
-	h = res.shape[0] # y
-
-	for y in range(h):
-		for x in range(w):
-			res[y, x, 3] = 0xFE
-
-			# print(type(h_msk[y, x]))
-			if h_msk[y, x, 0] == 255 and h_msk[y, x, 1] == 0 and h_msk[y, x, 2] == 0:   # A
-				#res[y, x, 0] = 255
-				res[y, x, 0] = int(int(AmidR + (abs(AmidR - AshdR) * (s_msk[y, x, 1] / 255)) ) + (abs(AmidR - AhilR) * (s_msk[y, x, 0] / 255)) )//2
-				res[y, x, 1] = int(int(AmidG + (abs(AmidG - AshdG) * (s_msk[y, x, 1] / 255)) ) + (abs(AmidG - AhilG) * (s_msk[y, x, 0] / 255)) )//2
-				res[y, x, 2] = int(int(AmidB + (abs(AmidB - AshdB) * (s_msk[y, x, 1] / 255)) ) + (abs(AmidB - AhilB) * (s_msk[y, x, 0] / 255)) )//2 # Just shadow for now
-			elif h_msk[y, x, 0] == 0 and h_msk[y, x, 1] == 255 and h_msk[y, x, 2] == 0: # B
-				#res[y, x, 1] = 255
-				res[y, x, 0] = int(int(BmidR + (abs(BmidR - BshdR) * (s_msk[y, x, 1] / 255)) ) + (abs(BmidR - BhilR) * (s_msk[y, x, 0] / 255)) )
-				res[y, x, 1] = int(int(BmidG + (abs(BmidG - BshdG) * (s_msk[y, x, 1] / 255)) ) + (abs(BmidG - BhilG) * (s_msk[y, x, 0] / 255)) )
-				res[y, x, 2] = int(int(BmidB + (abs(BmidB - BshdB) * (s_msk[y, x, 1] / 255)) ) + (abs(BmidB - BhilB) * (s_msk[y, x, 0] / 255)) ) # Just shadow for now
-			elif h_msk[y, x, 0] == 0 and h_msk[y, x, 1] == 0 and h_msk[y, x, 2] == 255: # C
-				#res[y, x, 2] = 255
-				res[y, x, 0] = int(int(CmidR + (abs(CmidR - CshdR) * (s_msk[y, x, 1] / 255)) ) + (abs(CmidR - ChilR) * (s_msk[y, x, 0] / 255)) )
-				res[y, x, 1] = int(int(CmidG + (abs(CmidG - CshdG) * (s_msk[y, x, 1] / 255)) ) + (abs(CmidG - ChilG) * (s_msk[y, x, 0] / 255)) )
-				res[y, x, 2] = int(int(CmidB + (abs(CmidB - CshdB) * (s_msk[y, x, 1] / 255)) ) + (abs(CmidB - ChilB) * (s_msk[y, x, 0] / 255)) ) # Just shadow for now
-			else:
-				pass
-			 	#print("other")
 
 cpdef ue_color_diff(np.ndarray[DTYPE_t, ndim = 3] hard_mask, np.ndarray[DTYPE_t, ndim = 3] soft_mask, np.ndarray[DTYPE_t, ndim = 3] colors):
 	# [0]: A, [1]: B, [2]: C
@@ -121,25 +60,17 @@ cpdef ue_color_diff(np.ndarray[DTYPE_t, ndim = 3] hard_mask, np.ndarray[DTYPE_t,
 	for y in range(h):
 		for x in range(w):
 			res[y, x, 3] = 0xFF
-			#if hard_mask[y, x, 0] == 255 and hard_mask[y, x, 1] == 0 and hard_mask[y, x, 2] == 0:   # A
-			#	res[y, x, 0] = col_median(colors[0, 1, 0], colors[0, 0, 0], soft_mask[y, x, 1])
-			#	res[y, x, 1] = col_median(colors[0, 1, 1], colors[0, 0, 1], soft_mask[y, x, 1])
-			#	res[y, x, 2] = col_median(colors[0, 1, 2], colors[0, 0, 2], soft_mask[y, x, 1])
-			#elif hard_mask[y, x, 0] == 0 and hard_mask[y, x, 1] == 255 and hard_mask[y, x, 2] == 0: # B
-			#	res[y, x, 0] = col_median(colors[1, 1, 0], colors[1, 0, 0], soft_mask[y, x, 1])
-			#	res[y, x, 1] = col_median(colors[1, 1, 1], colors[1, 0, 1], soft_mask[y, x, 1])
-			#	res[y, x, 2] = col_median(colors[1, 1, 2], colors[1, 0, 2], soft_mask[y, x, 1])
-			#elif hard_mask[y, x, 0] == 0 and hard_mask[y, x, 1] == 0 and hard_mask[y, x, 2] == 255: # C
-			#	res[y, x, 0] = col_median(colors[2, 1, 0], colors[2, 0, 0], soft_mask[y, x, 1])
-			#	res[y, x, 1] = col_median(colors[2, 1, 1], colors[2, 0, 1], soft_mask[y, x, 1])
-			#	res[y, x, 2] = col_median(colors[2, 1, 2], colors[2, 0, 2], soft_mask[y, x, 1])
-			#else:
-			#	res[y, x, 3] = 0x00
-			if hard_mask[y, x, 0] > hard_mask[y, x, 1] and hard_mask[y, x, 0] > hard_mask[y, x, 2]:   # A
+			#if hard_mask[y, x, 0] > hard_mask[y, x, 1] and hard_mask[y, x, 0] > hard_mask[y, x, 2]:   # A
+			#	ccol = 0
+			#elif hard_mask[y, x, 1] > hard_mask[y, x, 0] and hard_mask[y, x, 1] > hard_mask[y, x, 2]: # B
+			#	ccol = 1
+			#elif hard_mask[y, x, 2] > hard_mask[y, x, 0] and hard_mask[y, x, 2] > hard_mask[y, x, 1]: # C
+			#	ccol = 2
+			if hard_mask[y, x, 0] > 230:
 				ccol = 0
-			elif hard_mask[y, x, 1] > hard_mask[y, x, 0] and hard_mask[y, x, 1] > hard_mask[y, x, 2]: # B
+			elif hard_mask[y, x, 1] > 230:
 				ccol = 1
-			elif hard_mask[y, x, 2] > hard_mask[y, x, 0] and hard_mask[y, x, 2] > hard_mask[y, x, 1]: # C
+			elif hard_mask[y, x, 2] > 230:
 				ccol = 2
 			else:
 				res[y, x, 3] = 0x00
