@@ -16,10 +16,10 @@ from PIL import Image, ImageChops, ImageMath, ImageDraw
 
 from bl2_skingen.unreal_notation import Parser as UParser
 from bl2_skingen.unreal_notation import UnrealNotationParseError
-from bl2_skingen.imaging.overlay import overlay_3D
-from bl2_skingen.imaging.darken import darken
-from bl2_skingen.imaging.multiply import multiply
-from bl2_skingen.imaging.ue_color_diff import ue_color_diff
+from bl2_skingen.imaging.overlay import overlay_3D # pylint: disable=import-error, no-name-in-module
+from bl2_skingen.imaging.darken import darken # pylint: disable=import-error, no-name-in-module
+from bl2_skingen.imaging.multiply_sqrt import multiply # pylint: disable=import-error, no-name-in-module
+from bl2_skingen.imaging.ue_color_diff import ue_color_diff # pylint: disable=import-error, no-name-in-module
 
 # Flex tape the PIL.Image module's logger
 logging.getLogger("PIL.Image").setLevel(60)
@@ -29,7 +29,11 @@ __version__ = "1.0.0"
 
 SKINGEN_LOGGER = logging.getLogger(__name__)
 
-CLASSES = ("Assassin", "Mechro", "Mercenary", "Soldier", "Siren", "Psycho")
+CLASSES = (("Assassin", "Assassin"), ("Mechro", "Mechromancer"),
+	("Mercenary", "Mercenary"), ("Soldier", "Soldier"),
+	("Siren", "Siren"), ("Psycho", "Psycho"))
+	# 0: Name as in dir path; 1: Name of mask texture
+
 MATIFILE = "MaterialInstanceConstant\\Mati_{}_{}.mat"
 PROPSFILE = "MaterialInstanceConstant\\Mati_{}_{}.props.txt"
 MASKFILES = "Texture2D\\{}{}_Msk.tga" #classname, "Head"/"Body"
@@ -43,7 +47,9 @@ MAP_CHNL_TO_IDX = {"R":0, "G":1, "B":2, "A":3}
 logging.getLogger().setLevel(0) # this magically works, whoop-de-doo
 
 class Bodypart():
-	"""Small namespace for different files of Head/Body"""
+	"""Small namespace for different files of Head/Body.
+	Name will be retrievable by the properties cap, lwr and upr.
+	"""
 	mati = None
 	props = None
 	props_dict = None
@@ -52,7 +58,6 @@ class Bodypart():
 	nrm = None
 
 	def __init__(self, name):
-		"""Name will be retrievable by the properties cap, lwr and upr"""
 		self.name = name
 
 	@property
@@ -89,8 +94,8 @@ class SkinGenerator():
 
 	def _determine_params(self):
 		for i in CLASSES:
-			if i in self.in_dir.stem:
-				self.class_ = i
+			if i[0] in self.in_dir.stem:
+				self.class_ = i[1]
 				break
 		else:
 			raise ValueError("Unable to find class in path name: " + self.in_dir.stem)
@@ -111,10 +116,10 @@ class SkinGenerator():
 		self._get_textures()
 		self.logger.log(22, f"Reading decal pos and color information...")
 		self._read_props_files()
-		self.logger.log(22, f"===Generating body file===")
+		self.logger.log(25, f"===Generating body file===")
 		self._generate_image(self.body)
 		# raise NotImplementedError()
-		self.logger.log(22, f"===Generating head file===")
+		self.logger.log(25, f"===Generating head file===")
 		self._generate_image(self.head)
 
 	@staticmethod
@@ -224,7 +229,8 @@ class SkinGenerator():
 			raise ValueError("Well this shouldn't happen but the dif and mask images are of different sizes.")
 
 		soft_mask = msk_img.resize((x, y), box = (0.0, 0.0, x/2, float(y)))
-		hard_mask = msk_img.resize((x, y), box = (x/2, 0.0, float(x), float(y)))
+		hard_mask = msk_img.resize((x, y), box = (x/2, 0.0, float(x), float(y)), resample = Image.NEAREST)
+		#hard_mask.show()
 
 		self.logger.log(20, f"Reading and converting color information...")
 
@@ -237,31 +243,38 @@ class SkinGenerator():
 			color_name_match = RE_DEFINES_CHNL_COL.match(i["ParameterName"])
 			if color_name_match:
 				nrm_colors = [0, 0, 0, 0]
+				mul = 1
+				for val in i["ParameterValue"].values():
+					val = float(val.strip())
+					if val > 1:
+						mul = 1/val
+
 				for chnl, val in i["ParameterValue"].items():
 					nrm_colors[MAP_CHNL_TO_IDX[chnl]] = \
-						round((float(val.strip())) * 255)
+						round(((float(val.strip())) * 255) * mul)
 
 				colors[MAP_COLOR_TO_IDX[color_name_match[1]]] \
 					[MAP_NAME_TO_IDX[color_name_match[2].lower()]] = \
 					nrm_colors
 
 		######DEBUG BLOCK
-		self.logger.log(19, f"Color infs:\n{colors}")
-		self.logger.log(19, f"Dumping color palette...")
-		self.dump_color_palette(colors)
+		#self.logger.log(19, f"Color infs:\n{colors}")
+		#self.logger.log(19, f"Dumping color palette...")
+		#self.dump_color_palette(colors)
 
-		self.logger.log(22, f"Generating overlay image...")
+		self.logger.log(25, f"Generating overlay image...")
 		hard_mask_arr = numpy.array(hard_mask)
 		soft_mask_arr = numpy.array(soft_mask)
 		overlay_res = ue_color_diff(hard_mask_arr, soft_mask_arr, colors)
 		overlay_img = Image.fromarray(overlay_res, mode = "RGBA")
 		self.logger.log(19, f"Writing overlay image...")
-		overlay_img.save(f"overlay_{part.lwr}.png")
+		#overlay_img.save(f"overlay_{part.lwr}.png"))
 
-		self.logger.log(22, f"Merging overlay and base image...")
+		self.logger.log(25, f"Merging overlay and base image...")
 		dif_img_arr = numpy.array(dif_img)
-		self.logger.log(22, f"Saving generated texture...")
-		Image.fromarray(multiply(overlay_res, dif_img_arr)).save(f"final_{part.lwr}.png")
+		final_arr = multiply(overlay_res, dif_img_arr)
+		self.logger.log(25, f"Saving generated texture...")
+		Image.fromarray(final_arr).save(Path(self.out_dir, f"final_{part.lwr}.png"))
 
 argparser = argparse.ArgumentParser()
 

@@ -135,11 +135,11 @@ cpdef ue_color_diff(np.ndarray[DTYPE_t, ndim = 3] hard_mask, np.ndarray[DTYPE_t,
 			#	res[y, x, 2] = col_median(colors[2, 1, 2], colors[2, 0, 2], soft_mask[y, x, 1])
 			#else:
 			#	res[y, x, 3] = 0x00
-			if hard_mask[y, x, 0] == 255 and hard_mask[y, x, 1] == 0 and hard_mask[y, x, 2] == 0:   # A
+			if hard_mask[y, x, 0] > hard_mask[y, x, 1] and hard_mask[y, x, 0] > hard_mask[y, x, 2]:   # A
 				ccol = 0
-			elif hard_mask[y, x, 0] == 0 and hard_mask[y, x, 1] == 255 and hard_mask[y, x, 2] == 0: # B
+			elif hard_mask[y, x, 1] > hard_mask[y, x, 0] and hard_mask[y, x, 1] > hard_mask[y, x, 2]: # B
 				ccol = 1
-			elif hard_mask[y, x, 0] == 0 and hard_mask[y, x, 1] == 0 and hard_mask[y, x, 2] == 255: # C
+			elif hard_mask[y, x, 2] > hard_mask[y, x, 0] and hard_mask[y, x, 2] > hard_mask[y, x, 1]: # C
 				ccol = 2
 			else:
 				res[y, x, 3] = 0x00

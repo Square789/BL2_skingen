@@ -3,9 +3,13 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+.vscode/
 *.lock
 test_scrn/
 test*.png
+_test_o.py
+_test_oa.py
+
 bl2_skingen/imaging/*.html
 bl2_skingen/imaging/*.c
 bl2_skingen/imaging/*.pyd

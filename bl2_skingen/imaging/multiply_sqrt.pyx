@@ -2,6 +2,8 @@ import cython
 import numpy as np
 cimport numpy as np
 
+from libc.math cimport sqrt
+
 np.import_array()
 
 DTYPE = np.uint8
@@ -21,7 +23,8 @@ cdef np.uint8_t _min(np.uint8_t a, np.uint8_t b):
 @cython.boundscheck(False)
 @cython.wraparound(False)
 cpdef np.ndarray[DTYPE_t, ndim = 3] multiply(np.ndarray[DTYPE_t, ndim = 3] top_img, np.ndarray[DTYPE_t, ndim = 3] base_img):
-	"""Overlays top_img with base_img, returning a numpy array.
+	"""Blends top_img with base_img using multiply,
+	then takes the square root of the result, returning a numpy array.
 	Top image should be supplied as RGBA, base image as RGB.
 	"""
 	if top_img.ndim != 3 or base_img.ndim != 3:
@@ -44,12 +47,14 @@ cpdef np.ndarray[DTYPE_t, ndim = 3] multiply(np.ndarray[DTYPE_t, ndim = 3] top_i
 	cdef int h = top_img.shape[0]
 	cdef int w = top_img.shape[1]
 	cdef unsigned char rgb
+	cdef double tmp
 	cdef np.uint8_t tmp_col
 
 	for y in range(h):
 		for x in range(w):
 			for rgb in range(3):
-				tmp_col = scale_int(top_img[y, x, rgb], base_img[y, x, rgb])
+				tmp = scale_int(top_img[y, x, rgb], base_img[y, x, rgb]) / 255.0
+				tmp_col = int(sqrt(tmp) * 255)
 				res[y, x, rgb] = (scale_int(top_img[y, x, 3], tmp_col) + scale_int((255 - top_img[y, x, 3]), base_img[y, x, rgb]))
 
 	return res
