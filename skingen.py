@@ -12,7 +12,7 @@ import argparse
 from math import log2
 
 import numpy # gotta get that sweet C array
-from PIL import Image, ImageChops, ImageMath, ImageDraw
+from PIL import Image, ImageFilter, ImageDraw
 
 from bl2_skingen.unreal_notation import Parser as UParser
 from bl2_skingen.unreal_notation import UnrealNotationParseError
@@ -29,16 +29,15 @@ __version__ = "1.0.0"
 
 SKINGEN_LOGGER = logging.getLogger(__name__)
 
-CLASSES = (("Assassin", "Assassin"), ("Mechro", "Mechromancer"),
-	("Mercenary", "Mercenary"), ("Soldier", "Soldier"),
-	("Siren", "Siren"), ("Psycho", "Psycho"))
-	# 0: Name as in dir path; 1: Name of mask texture
+CLASSES = ("Assassin", "Mechro", "Mercenary", "Soldier", "Siren", "Psycho")
 
-MATIFILE = "MaterialInstanceConstant\\Mati_{}_{}.mat"
 PROPSFILE = "MaterialInstanceConstant\\Mati_{}_{}.props.txt"
-MASKFILES = "Texture2D\\{}{}_Msk.tga" #classname, "Head"/"Body"
 
+TEXTURE_FILE = "Texture2D\\{}.tga"
+UE_TEX_SEP = "."
+RE_TEXTURE_UE_INTERNAL_PATH = re.compile(r"Texture2D'(.*)'") # NOTE: MAYBE \' IS A VALID ESC SEQUENCE
 RE_DEFINES_CHNL_COL = re.compile(r"p_([ABC])Color(.*)$")
+MAP_TEX_PARAM_NAME_TO_PART_ATTR = {"p_Normal": "nrm", "p_Diffuse": "dif", "p_Masks": "msk"}
 
 MAP_COLOR_TO_IDX = {"A":0, "B":1, "C":2}
 MAP_NAME_TO_IDX = {"shadow":0, "midtone":1, "hilight":2}
@@ -50,7 +49,6 @@ class Bodypart():
 	"""Small namespace for different files of Head/Body.
 	Name will be retrievable by the properties cap, lwr and upr.
 	"""
-	mati = None
 	props = None
 	props_dict = None
 	dif = None
@@ -75,6 +73,8 @@ class SkinGenerator():
 	"""Main Program class that takes control of the command line."""
 	body = Bodypart("Body")
 	head = Bodypart("Head")
+	skin_name = None
+	skin_type = None
 
 	def __init__(self, in_dir, out_dir, no_ask, silence):
 		self.in_dir = Path(in_dir)
@@ -110,15 +110,14 @@ class SkinGenerator():
 		"""Do the thing."""
 		self.logger.log(22, f"Input directory: {self.in_dir}")
 		self.logger.log(22, f"Output directory: {self.out_dir}")
-		self.logger.log(22, f"Seeking for mat and props files...")
-		self._locate_files()
-		self.logger.log(22, f"Parsing material files and getting textures...")
+		self.logger.log(22, f"Seeking for props files...")
+		self._locate_props_files()
+		self.logger.log(22, f"Parsing props files and getting textures...")
+		self._parse_props_files()
+		self.logger.log(22, f"Fetching and validating textures...")
 		self._get_textures()
-		self.logger.log(22, f"Reading decal pos and color information...")
-		self._read_props_files()
 		self.logger.log(25, f"===Generating body file===")
 		self._generate_image(self.body)
-		# raise NotImplementedError()
 		self.logger.log(25, f"===Generating head file===")
 		self._generate_image(self.head)
 
@@ -162,43 +161,18 @@ class SkinGenerator():
 			cname_i += 1
 		palette_img.save(Path(self.out_dir, "palette.png"))
 
-	def _locate_files(self):
-		"""Seeks and confirms existence of the mat and props files."""
+	def _locate_props_files(self):
+		"""Seeks and confirms existence of the props files."""
 		for part in (self.body, self.head):
-			for part_attr, pathpreset in (("props", PROPSFILE), ("mati", MATIFILE)):
-				tmp_pat = Path(self.in_dir, pathpreset.format(self.skin_name, part.cap))
-				if not tmp_pat.exists():
-					self.logger.log(50, f"COULD NOT FIND {tmp_pat}.")
-					raise FileNotFoundError(tmp_pat.__str__())
-				setattr(part, part_attr, tmp_pat)
-				self.logger.log(20, f"\tFound {tmp_pat.name}")
-
-	def _get_textures(self):
-		"""Reads textures from self.body.mati and self.head.mati
-		and checks whether they exist (as tga).
-		If they do, stores them in the respective objects.
-		Also retrieves Mask textures.
-		"""
-		for part in (self.body, self.head):
-			with open(part.mati, "r") as h:
-				u_prsr = UParser(h.read())
-			res = u_prsr.parse()
-			if not "Diffuse" in res or not "Normal" in res:
-				raise ValueError("Material file incomplete, how did this happen?")
-			for key, varname in (("Diffuse", "dif"), ("Normal", "nrm")):
-				tmp_pat = Path(self.in_dir, "Texture2D", res[key] + ".tga")
-				if not tmp_pat.exists():
-					raise FileNotFoundError(f"Could not locate {tmp_pat}")
-				setattr(part, varname, tmp_pat)
-				self.logger.log(20, f"\t{key} {part.cap}: {tmp_pat.name}")
-
-			tmp_pat = Path(self.in_dir, MASKFILES.format(self.class_, part.cap))
+			tmp_pat = Path(self.in_dir, PROPSFILE.format(self.skin_name, part.cap))
 			if not tmp_pat.exists():
-				raise FileNotFoundError(f"Could not locate {tmp_pat}")
-			setattr(part, "msk", tmp_pat)
-			self.logger.log(20, f"\tMask {part.cap}: {tmp_pat.name}")
+				self.logger.log(50, f"COULD NOT FIND {tmp_pat}.")
+				raise FileNotFoundError(tmp_pat.__str__())
+			setattr(part, "props", tmp_pat)
 
-	def _read_props_files(self):
+			self.logger.log(20, f"\tFound {tmp_pat.name}")
+
+	def _parse_props_files(self):
 		"""Assumes both self.body and self.head contain links to the
 		props files, parses those and stores colouring information in
 		the part's props_dict attribute.
@@ -212,6 +186,29 @@ class SkinGenerator():
 				self.logger.log(50, f"Error parsing Unreal Notation file")
 				raise
 			part.props_dict = res
+
+	def _get_textures(self):
+		"""Reads textures from self.body.props_dict and
+		self.head.props_dics, then checks whether they exist (as tga).
+		If they do, stores them in the respective objects.
+		"""
+		#I need: dif, nrm, msk
+		for part in (self.body, self.head):
+			for param_dict in part.props_dict["TextureParameterValues"]:
+				if param_dict["ParameterName"] not in MAP_TEX_PARAM_NAME_TO_PART_ATTR:
+					continue
+				attr = MAP_TEX_PARAM_NAME_TO_PART_ATTR[param_dict["ParameterName"]]
+
+				ue_tex_name = RE_TEXTURE_UE_INTERNAL_PATH.search(param_dict["ParameterValue"])
+				if not ue_tex_name:
+					self.logger.log(50, "Could not apply regex to get texture file.")
+					raise ValueError()
+				ue_tex_name = ue_tex_name[1]
+				ue_tex_name = ue_tex_name.split(UE_TEX_SEP)[-1]
+				tmp_pat = Path(self.in_dir, TEXTURE_FILE.format(ue_tex_name))
+
+				setattr(part, attr, tmp_pat)
+				self.logger.log(20, f"\t{attr} {part.cap}: {tmp_pat.name}")
 
 	def _generate_image(self, part):
 		self.logger.log(20, f"Opening {part.dif}")
@@ -230,7 +227,12 @@ class SkinGenerator():
 
 		soft_mask = msk_img.resize((x, y), box = (0.0, 0.0, x/2, float(y)))
 		hard_mask = msk_img.resize((x, y), box = (x/2, 0.0, float(x), float(y)), resample = Image.NEAREST)
-		#hard_mask.show()
+		#hmmod0 = hard_mask.filter(ImageFilter.SMOOTH)
+		#hmmod1 = hard_mask.filter(ImageFilter.SMOOTH_MORE)
+		#hmmod0.show()
+		#hmmod1.show()
+
+		#raise NotImplementedError()
 
 		self.logger.log(20, f"Reading and converting color information...")
 

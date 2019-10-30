@@ -21,7 +21,7 @@ cdef np.uint8_t _min(np.uint8_t a, np.uint8_t b):
 @cython.boundscheck(False)
 @cython.wraparound(False)
 cpdef np.ndarray[DTYPE_t, ndim = 3] darken(np.ndarray[DTYPE_t, ndim = 3] top_img, np.ndarray[DTYPE_t, ndim = 3] base_img):
-	"""Overlays top_img with base_img, returning a numpy array.
+	"""Overlays top_img with base_img, using the darken blend algorithm, returning a numpy array.
 	Top image should be supplied as RGBA, base image as RGB.
 	"""
 	if top_img.ndim != 3 or base_img.ndim != 3:
@@ -51,8 +51,5 @@ cpdef np.ndarray[DTYPE_t, ndim = 3] darken(np.ndarray[DTYPE_t, ndim = 3] top_img
 			for rgb in range(3):
 				tmp_col = _min(top_img[y, x, rgb], base_img[y, x, rgb])
 				res[y, x, rgb] = (scale_int(top_img[y, x, 3], tmp_col) + scale_int((255 - top_img[y, x, 3]), base_img[y, x, rgb]))
-
-			# if al < 191:
-			# 	print(al, x, y, "|", res[y,x,0], res[y,x,1], res[y,x,2])
 
 	return res

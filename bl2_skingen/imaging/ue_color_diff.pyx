@@ -64,11 +64,11 @@ cpdef ue_color_diff(np.ndarray[DTYPE_t, ndim = 3] hard_mask, np.ndarray[DTYPE_t,
 			#	ccol = 1
 			#elif hard_mask[y, x, 2] > hard_mask[y, x, 0] and hard_mask[y, x, 2] > hard_mask[y, x, 1]: # C
 			#	ccol = 2
-			if hard_mask[y, x, 0] > 230:
+			if hard_mask[y, x, 0] > 215:
 				ccol = 0
-			elif hard_mask[y, x, 1] > 230:
+			elif hard_mask[y, x, 1] > 215:
 				ccol = 1
-			elif hard_mask[y, x, 2] > 230:
+			elif hard_mask[y, x, 2] > 215:
 				ccol = 2
 			else:
 				res[y, x, 3] = 0x00
