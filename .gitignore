@@ -14,6 +14,9 @@ bl2_skingen/imaging/*.html
 bl2_skingen/imaging/*.c
 bl2_skingen/imaging/*.pyd
 
+final_*.png
+overlay_*.png
+
 # C extensions
 *.so
 
