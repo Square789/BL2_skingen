@@ -9,6 +9,7 @@ from pathlib import Path
 import logging
 from pprint import pprint
 import argparse
+import datetime
 from math import log2
 
 import numpy # gotta get that sweet C array
@@ -16,18 +17,26 @@ from PIL import Image, ImageFilter, ImageDraw
 
 from bl2_skingen.unreal_notation import Parser as UParser
 from bl2_skingen.unreal_notation import UnrealNotationParseError
+from bl2_skingen.log_formatter import SkingenLogFormatter
 from bl2_skingen.imaging.overlay import overlay_3D # pylint: disable=import-error, no-name-in-module
 from bl2_skingen.imaging.darken import darken # pylint: disable=import-error, no-name-in-module
 from bl2_skingen.imaging.multiply_sqrt import multiply # pylint: disable=import-error, no-name-in-module
 from bl2_skingen.imaging.ue_color_diff import ue_color_diff # pylint: disable=import-error, no-name-in-module
 
-# Flex tape the PIL.Image module's logger
-logging.getLogger("PIL.Image").setLevel(60)
-
 __author__ = "Square789"
 __version__ = "1.0.0"
 
+PATHSEPS = (os.path.sep, "\\", "/")
+
+# Flex tape the PIL.Image module's logger
+logging.getLogger("PIL.Image").setLevel(60)
+
+# Set up own logger
 SKINGEN_LOGGER = logging.getLogger(__name__)
+log_hdlr = logging.StreamHandler(sys.stdout)
+fmtr = SkingenLogFormatter("{levelname:9}| {funcName:20}: {message}", None, "{")
+log_hdlr.setFormatter(fmtr)
+SKINGEN_LOGGER.addHandler(log_hdlr)
 
 CLASSES = ("Assassin", "Mechro", "Mercenary", "Soldier", "Siren", "Psycho")
 
@@ -76,17 +85,15 @@ class SkinGenerator():
 	skin_name = None
 	skin_type = None
 
-	def __init__(self, in_dir, out_dir, no_ask, silence):
+	def __init__(self, in_dir, out_dir, no_ask, silence, out_fmt):
 		self.in_dir = Path(in_dir)
 		self.out_dir = Path(out_dir)
 		self.in_dir = self.in_dir.absolute()
 		self.out_dir = self.out_dir.absolute()
+		self.no_ask = no_ask
+		self.out_fmt = out_fmt
 
 		self.logger = SKINGEN_LOGGER
-		log_hdlr = logging.StreamHandler(sys.stdout)
-		fmtr = logging.Formatter("{message}", None, "{")
-		log_hdlr.setFormatter(fmtr)
-		self.logger.addHandler(log_hdlr)
 		if silence > 3: silence = 3
 		self.logger.setLevel(21 + (silence * 3))
 
@@ -94,17 +101,19 @@ class SkinGenerator():
 
 	def _determine_params(self):
 		for i in CLASSES:
-			if i[0] in self.in_dir.stem:
-				self.class_ = i[1]
+			if i in self.in_dir.stem:
+				self.class_ = i
 				break
 		else:
-			raise ValueError("Unable to find class in path name: " + self.in_dir.stem)
+			self.logger.log(50, f"Unable to find class in path name: {self.in_dir.stem}")
+			sys.exit()
 		try:
 			tmp = self.in_dir.stem.split("_")
 			self.skin_name = tmp[3]
 			self.skin_type = tmp[2]
 		except IndexError:
-			raise ValueError("Path not conforming to expected format.")
+			self.logger.log(50, "Path not conforming to expected format.")
+			sys.exit()
 
 	def run(self):
 		"""Do the thing."""
@@ -167,7 +176,7 @@ class SkinGenerator():
 			tmp_pat = Path(self.in_dir, PROPSFILE.format(self.skin_name, part.cap))
 			if not tmp_pat.exists():
 				self.logger.log(50, f"COULD NOT FIND {tmp_pat}.")
-				raise FileNotFoundError(tmp_pat.__str__())
+				sys.exit()
 			setattr(part, "props", tmp_pat)
 
 			self.logger.log(20, f"\tFound {tmp_pat.name}")
@@ -184,7 +193,7 @@ class SkinGenerator():
 				res = u_prsr.parse()
 			except UnrealNotationParseError:
 				self.logger.log(50, f"Error parsing Unreal Notation file")
-				raise
+				sys.exit()
 			part.props_dict = res
 
 	def _get_textures(self):
@@ -202,7 +211,7 @@ class SkinGenerator():
 				ue_tex_name = RE_TEXTURE_UE_INTERNAL_PATH.search(param_dict["ParameterValue"])
 				if not ue_tex_name:
 					self.logger.log(50, "Could not apply regex to get texture file.")
-					raise ValueError()
+					sys.exit()
 				ue_tex_name = ue_tex_name[1]
 				ue_tex_name = ue_tex_name.split(UE_TEX_SEP)[-1]
 				tmp_pat = Path(self.in_dir, TEXTURE_FILE.format(ue_tex_name))
@@ -218,20 +227,17 @@ class SkinGenerator():
 		self.logger.log(20, f"Opening {part.msk} and expanding")
 		msk_img = Image.open(part.msk)
 		if not self.is_perfect_square(msk_img):
-			raise ValueError("Image has bad constraints.")
+			self.logger.log(50, "Image has bad constraints.")
+			sys.exit()
 
 		m_x, m_y = msk_img.size
 
 		if m_x != x or m_y != y:
-			raise ValueError("Well this shouldn't happen but the dif and mask images are of different sizes.")
+			self.logger.log(50, "Well this shouldn't happen but the dif and mask images are of different sizes.")
+			sys.exit()
 
 		soft_mask = msk_img.resize((x, y), box = (0.0, 0.0, x/2, float(y)))
 		hard_mask = msk_img.resize((x, y), box = (x/2, 0.0, float(x), float(y)), resample = Image.NEAREST)
-		#hmmod0 = hard_mask.filter(ImageFilter.SMOOTH)
-		#hmmod1 = hard_mask.filter(ImageFilter.SMOOTH_MORE)
-		#hmmod0.show()
-		#hmmod1.show()
-
 		#raise NotImplementedError()
 
 		self.logger.log(20, f"Reading and converting color information...")
@@ -256,6 +262,9 @@ class SkinGenerator():
 					nrm_colors[MAP_CHNL_TO_IDX[chnl]] = \
 						round(((float(val.strip())) * 255) * mul)
 
+				if sum(nrm_colors) > 980: # EXPERIMENTAL
+					nrm_colors[3] = 0
+
 				colors[MAP_COLOR_TO_IDX[color_name_match[1]]] \
 					[MAP_NAME_TO_IDX[color_name_match[2].lower()]] = \
 					nrm_colors
@@ -272,38 +281,59 @@ class SkinGenerator():
 		self.logger.log(25, f"Merging overlay and base image...")
 		dif_img_arr = numpy.array(dif_img)
 		final_arr = multiply(overlay_arr, dif_img_arr)
-		self.logger.log(25, f"Saving generated texture...")
-		targetpath = Path(self.out_dir, f"final_{part.lwr}.png")
-		Image.fromarray(final_arr).save(targetpath)
+		self._save_image(Image.fromarray(final_arr), part)
 
+	def _save_image(self, img, part):
+		"""Choose a target path based on class variables, the current bodypart,
+		which has to be supplied, perform a bunch of checks and ask user
+		whether they want to overwrite an existing file."""
+		f_stub = self.out_fmt.format(class_ = self.class_, skin_name = self.skin_name,
+				part = part.lwr, date = datetime.datetime.now().strftime("%d%m%Y-%H%M%S"))
+		targetpath = Path(self.out_dir, (f_stub + ".png"))
+		self.logger.log(25, f"Saving generated texture to {targetpath}")
+		# TODO: OVERWRITE CHECKS!
+		img.save(targetpath)
 
 if __name__ == "__main__":
-	argparser = argparse.ArgumentParser()
+	argparser = argparse.ArgumentParser(formatter_class = argparse.RawTextHelpFormatter)
 
-	argparser.add_argument("-in", default = os.getcwd(), dest = "in_", help = """
-		Input directory from the extracted Unreal Package. It should follow a
-		format like CD_<Class>_Skin_<Skin_name>_SF .
-	""")
-	argparser.add_argument("-out", "-o", default = os.getcwd(), help = """
-		Directory to save generated files to.
-	""")
-	# argparser.add_argument("-noask", default = False, help = """
-	# 	On certain uncertanties (overwriting files etc.) do not prompt the user to
-	# 	confirm/cancel an operation, always pick the one that resumes execution.
-	# """)
-	argparser.add_argument("-s", default = 0, action = "count", dest = "silence", help = """
-		Shut the script up to varying degrees (-s, -ss, -sss)
-	""")
-	argparser.add_argument("-debug", default = 0, action = "count", dest = "debug", help = """
-		Decreases the logging threshold by 6. Basically counteracts two "-s".
-	""")
+	argparser.add_argument("-in", default = os.getcwd(), dest = "in_", help = \
+		"Input directory from the extracted Unreal Package. It should follow a\n" \
+		"format like CD_<Class>_Skin_<Skin_name>_SF .")
+	argparser.add_argument("-out", "-o", default = os.getcwd(), help = \
+		"Directory to save generated files to." )
+	argparser.add_argument("-noask", default = False, action = "store_true", help = \
+		"On certain uncertanties (overwriting files etc.) do not prompt the user to\n"
+		"confirm/cancel an operation, always pick the one that resumes execution.\n" \
+		"===## NOT IMPLEMENTED YET ##===")
+	argparser.add_argument("-outname", default = "final_{part}", dest = "out_fmt", help = \
+		"Name of the output file. Will be .format()-ted with the following fed into it:\n"
+		"\tclass_ : Player class the skin is for\n"
+		"\tskin_name : Internal Skin name, taken from the input directory\n"
+		"\tpart : one of \"head\" or \"body\"\n"
+		"\tdate : Date as DDMMYYYY-HHmmSS\n"
+		"For example, \"{class_}_{skin_name}_{part}\" would result in output files being called\n"
+		"\"Siren_BlueB_head.png\". ")
+	argparser.add_argument("-s", default = 0, action = "count", dest = "silence", help = \
+		"Shut the script up to varying degrees (-s, -ss, -sss) ")
+	argparser.add_argument("-debug", default = 0, action = "count", dest = "debug", help = \
+		"Decreases the logging threshold by 6. Basically counteracts two \"-s\".")
 
 	if len(sys.argv) == 1:
 		argparser.print_help()
-		exit()
+		sys.exit()
 
 	args = argparser.parse_args()
+	for pathsep in PATHSEPS:
+		if pathsep in args.out_fmt:
+			SKINGEN_LOGGER.log(50, "Can not have directory separators in output file format!")
+			sys.exit()
+	try:
+		args.out_fmt.format(class_ = "test", skin_name = "test", part = "test", date = "test")
+	except (IndexError, KeyError, ValueError):
+		SKINGEN_LOGGER.log(50, "Invalid format string for output!")
+		sys.exit()
 
-	sg = SkinGenerator(in_dir = args.in_, out_dir = args.out, no_ask = None,
-			silence = (args.silence - (args.debug * 2)))
+	sg = SkinGenerator(in_dir = args.in_, out_dir = args.out, no_ask = args.noask,
+			silence = (args.silence - (args.debug * 2)), out_fmt = args.out_fmt)
 	sg.run()
