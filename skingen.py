@@ -175,7 +175,7 @@ class SkinGenerator():
 		for part in (self.body, self.head):
 			tmp_pat = Path(self.in_dir, PROPSFILE.format(self.skin_name, part.cap))
 			if not tmp_pat.exists():
-				self.logger.log(50, f"COULD NOT FIND {tmp_pat}.")
+				self.logger.log(50, f"COULD NOT FIND {tmp_pat}!")
 				sys.exit()
 			setattr(part, "props", tmp_pat)
 
@@ -215,7 +215,8 @@ class SkinGenerator():
 				ue_tex_name = ue_tex_name[1]
 				ue_tex_name = ue_tex_name.split(UE_TEX_SEP)[-1]
 				tmp_pat = Path(self.in_dir, TEXTURE_FILE.format(ue_tex_name))
-
+				if not tmp_pat.exists():
+					self.logger.log(50, f"Unable to find texture file {tmp_pat}!")
 				setattr(part, attr, tmp_pat)
 				self.logger.log(20, f"\t{attr} {part.cap}: {tmp_pat.name}")
 
@@ -262,8 +263,9 @@ class SkinGenerator():
 					nrm_colors[MAP_CHNL_TO_IDX[chnl]] = \
 						round(((float(val.strip())) * 255) * mul)
 
-				if sum(nrm_colors) > 980: # EXPERIMENTAL
-					nrm_colors[3] = 0
+				if nrm_colors[0] > 235 and nrm_colors[1] > 235 and nrm_colors[2] > 235:
+					nrm_colors[3] = 0 # Wonky; so far all white has been overlayed with
+					# skin, turning it brighter than it should be.
 
 				colors[MAP_COLOR_TO_IDX[color_name_match[1]]] \
 					[MAP_NAME_TO_IDX[color_name_match[2].lower()]] = \
@@ -292,6 +294,18 @@ class SkinGenerator():
 		targetpath = Path(self.out_dir, (f_stub + ".png"))
 		self.logger.log(25, f"Saving generated texture to {targetpath}")
 		# TODO: OVERWRITE CHECKS!
+		if targetpath.exists() and (not self.no_ask):
+			self.logger.log(30, f"File {targetpath} already exists!")
+			while True:
+				userchoice = input("Overwrite it? (Y/N) > ").lower()
+				if userchoice != "n" and userchoice != "y":
+					continue
+				if userchoice == "n":
+					return
+				elif userchoice == "y":
+					break
+				else:
+					self.logger.log(50, "What"); sys.exit()
 		img.save(targetpath)
 
 if __name__ == "__main__":

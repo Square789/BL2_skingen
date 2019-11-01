@@ -10,6 +10,7 @@ Navigate a terminal to the folder and run `py build_ue_color_diff.py build_ext -
 
 # How to use:
  * Download and extract the repo somewhere.
+ * Compile multiply_sqrt.pyx and ue_color_diff.pyx to binaries using Cython.
  * Use [UE Viewer/umodel](https://www.gildor.org/en/projects/umodel) to extract the packets from Borderlands 2, the filepaths are hardcoded to locate the files the way UE Viewer extracts them.
  * Navigate a terminal to the repo directory.
  * Run the program as follows: `py skingen.py -in C:\full\path\to\folder\CD_Assassin_Skin_OrangeD_SF`
