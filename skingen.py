@@ -337,7 +337,7 @@ if __name__ == "__main__":
 		"For example, \"{class_}_{skin_name}_{part}\" would result in output files being called\n"
 		"\"Siren_BlueB_head.png\". ")
 	argparser.add_argument("-s", default = 0, action = "count", dest = "silence", help = \
-		"Shut the script up to varying degrees (-s, -ss, -sss) ")
+		"Shut the script up to varying degrees (-s, -ss)")
 	argparser.add_argument("-noask", action = "append_const", dest = "flag", const = FLAGS.NO_ASK, help = \
 		"On certain uncertanties (overwriting files etc.) do not prompt the user to\n"
 		"confirm/cancel an operation, always pick the one that resumes execution.")
@@ -350,9 +350,9 @@ if __name__ == "__main__":
 	argparser.add_argument("-exc-body", action = "append_const", dest = "flag", const = FLAGS.EXCLUDE_BODY,
 		help = "Do not generate a body texture.")
 	argparser.add_argument("-keepwhite", action = "append_const", dest = "flag", const = FLAGS.KEEP_WHITE,
-		help = "As a hacky fix, if a color is too white (All channels > 235), its alpha will be set to 0."
-		"The reason for this is that skins such as Krieg's or faces would appear way brighter than"
-		"they should be.")
+		help = "As a hacky fix, if a color is too white (All channels > 235), its alpha will be set to 0.\n"
+		"The reason for this is that skins such as Krieg's or faces would appear way brighter than\n"
+		"they should be. With this switch, you can turn that behavior off.")
 
 	if len(sys.argv) == 1:
 		argparser.print_help()
