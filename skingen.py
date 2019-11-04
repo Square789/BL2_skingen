@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# Borderlands 2 Skin generator, (c) 2019 Square789
 if __name__ != "__main__":
 	raise RuntimeError("Please run this script directly.")
 
@@ -18,15 +20,16 @@ from PIL import Image, ImageFilter, ImageDraw
 from bl2_skingen.unreal_notation import Parser as UParser
 from bl2_skingen.unreal_notation import UnrealNotationParseError
 from bl2_skingen.log_formatter import SkingenLogFormatter
-from bl2_skingen.imaging.overlay import overlay_3D # pylint: disable=import-error, no-name-in-module
-from bl2_skingen.imaging.darken import darken # pylint: disable=import-error, no-name-in-module
+from bl2_skingen.flags import FLAGS
+# from bl2_skingen.imaging.overlay import overlay_3D # pylint: disable=import-error, no-name-in-module
+# from bl2_skingen.imaging.darken import darken # pylint: disable=import-error, no-name-in-module
 from bl2_skingen.imaging.multiply_sqrt import multiply # pylint: disable=import-error, no-name-in-module
 from bl2_skingen.imaging.ue_color_diff import ue_color_diff # pylint: disable=import-error, no-name-in-module
 
 __author__ = "Square789"
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
-PATHSEPS = (os.path.sep, "\\", "/")
+PATHSEPS = (os.path.sep, "\\", "/", "..")
 
 # Flex tape the PIL.Image module's logger
 logging.getLogger("PIL.Image").setLevel(60)
@@ -85,15 +88,15 @@ class SkinGenerator():
 	skin_name = None
 	skin_type = None
 
-	def __init__(self, in_dir, out_dir, no_ask, silence, out_fmt):
+	def __init__(self, logger, in_dir, out_dir, out_fmt, silence, flag):
 		self.in_dir = Path(in_dir)
 		self.out_dir = Path(out_dir)
 		self.in_dir = self.in_dir.absolute()
 		self.out_dir = self.out_dir.absolute()
-		self.no_ask = no_ask
+		self.flag = flag
 		self.out_fmt = out_fmt
 
-		self.logger = SKINGEN_LOGGER
+		self.logger = logger
 		if silence > 3: silence = 3
 		self.logger.setLevel(21 + (silence * 3))
 
@@ -125,10 +128,12 @@ class SkinGenerator():
 		self._parse_props_files()
 		self.logger.log(22, f"Fetching and validating textures...")
 		self._get_textures()
-		self.logger.log(25, f"===Generating body file===")
-		self._generate_image(self.body)
-		self.logger.log(25, f"===Generating head file===")
-		self._generate_image(self.head)
+		if not (self.flag & FLAGS.EXCLUDE_BODY):
+			self.logger.log(25, f"===Generating body file===")
+			self._generate_image(self.body)
+		if not (self.flag & FLAGS.EXCLUDE_HEAD):
+			self.logger.log(25, f"===Generating head file===")
+			self._generate_image(self.head)
 
 	@staticmethod
 	def is_perfect_square(img: Image.Image):
@@ -142,10 +147,10 @@ class SkinGenerator():
 			return False
 		return True
 
-	def dump_color_palette(self, colordict):
+	def dump_color_palette(self, col_arr) -> Image.Image:
 		"""
 		! Debug method !
-		Dumps a palette img called palette.png into the working directory.
+		Generates a palette img from a colorarray and returns it.
 		"""
 		color_names = ("A", "B", "C")
 		shm_names = ("shadow", "midtone", "hilight")
@@ -155,7 +160,7 @@ class SkinGenerator():
 		cname_i = 0
 		sname_i = 0
 		draw_agent = ImageDraw.ImageDraw(palette_img)
-		for color in colordict:
+		for color in col_arr:
 			for shm in color:
 				draw_agent.rectangle(
 					(x_offset * 64 + 16 * (x_offset + 1), y_offset * 64 + 16 * (y_offset + 1),
@@ -168,7 +173,7 @@ class SkinGenerator():
 			sname_i = 0
 			y_offset += 1
 			cname_i += 1
-		palette_img.save(Path(self.out_dir, "palette.png"))
+		return palette_img
 
 	def _locate_props_files(self):
 		"""Seeks and confirms existence of the props files."""
@@ -201,7 +206,6 @@ class SkinGenerator():
 		self.head.props_dics, then checks whether they exist (as tga).
 		If they do, stores them in the respective objects.
 		"""
-		#I need: dif, nrm, msk
 		for part in (self.body, self.head):
 			for param_dict in part.props_dict["TextureParameterValues"]:
 				if param_dict["ParameterName"] not in MAP_TEX_PARAM_NAME_TO_PART_ATTR:
@@ -219,6 +223,41 @@ class SkinGenerator():
 					self.logger.log(50, f"Unable to find texture file {tmp_pat}!")
 				setattr(part, attr, tmp_pat)
 				self.logger.log(20, f"\t{attr} {part.cap}: {tmp_pat.name}")
+
+	def _fetch_colors(self, part):
+		"""Reads the part's props_dict and return a three-dimensional
+		numpy array, where:
+		[0]: A, [1]: B, [2]: C
+		[x][0]: "shadow", [x][1]: "mid", [x][2]: "hilight"
+		[x][y][0]: R, [x][y][1]: G, [x][y][2]: B, [x][y][3]: A
+		"""
+		colors = numpy.ndarray((3, 3, 4), dtype = numpy.uint8)
+		colors[:] = 255 # Sometimes, colors are not specified, set them to full then
+
+		for i in part.props_dict["VectorParameterValues"]:
+			color_name_match = RE_DEFINES_CHNL_COL.match(i["ParameterName"])
+			if color_name_match:
+				nrm_colors = [0, 0, 0, 0]
+				mul = 1
+				for val in i["ParameterValue"].values():
+					val = float(val.strip())
+					if val > 1:
+						mul = 1/val
+
+				for chnl, val in i["ParameterValue"].items():
+					nrm_colors[MAP_CHNL_TO_IDX[chnl]] = \
+						round(((float(val.strip())) * 255) * mul)
+
+				if not (self.flag & FLAGS.KEEP_WHITE):
+					if nrm_colors[0] > 235 and nrm_colors[1] > 235 and nrm_colors[2] > 235:
+						nrm_colors[3] = 0 # Wonky; so far all white has been overlayed with
+						# skin, turning it brighter than it should be. This may cause problems
+						# with skins such as Zer0's "Whiteout" however.
+
+				colors[MAP_COLOR_TO_IDX[color_name_match[1]]] \
+					[MAP_NAME_TO_IDX[color_name_match[2].lower()]] = \
+					nrm_colors
+		return colors
 
 	def _generate_image(self, part):
 		self.logger.log(20, f"Opening {part.dif}")
@@ -239,41 +278,15 @@ class SkinGenerator():
 
 		soft_mask = msk_img.resize((x, y), box = (0.0, 0.0, x/2, float(y)))
 		hard_mask = msk_img.resize((x, y), box = (x/2, 0.0, float(x), float(y)), resample = Image.NEAREST)
-		#raise NotImplementedError()
 
 		self.logger.log(20, f"Reading and converting color information...")
-
-		colors = numpy.ndarray((3, 3, 4), dtype = numpy.uint8)
-		colors[:] = 255 # Sometimes, colors are not specified, set them to full then
-		# [0]: A, [1]: B, [2]: C
-		# [x][0]: "shadow", [x][1]: "mid", [x][2]: "hilight"
-		# [x][y][0]: R, [x][y][1]: G, [x][y][2]: B, [x][y][3]: A
-
-		for i in part.props_dict["VectorParameterValues"]:
-			color_name_match = RE_DEFINES_CHNL_COL.match(i["ParameterName"])
-			if color_name_match:
-				nrm_colors = [0, 0, 0, 0]
-				mul = 1
-				for val in i["ParameterValue"].values():
-					val = float(val.strip())
-					if val > 1:
-						mul = 1/val
-
-				for chnl, val in i["ParameterValue"].items():
-					nrm_colors[MAP_CHNL_TO_IDX[chnl]] = \
-						round(((float(val.strip())) * 255) * mul)
-
-				if nrm_colors[0] > 235 and nrm_colors[1] > 235 and nrm_colors[2] > 235:
-					nrm_colors[3] = 0 # Wonky; so far all white has been overlayed with
-					# skin, turning it brighter than it should be.
-
-				colors[MAP_COLOR_TO_IDX[color_name_match[1]]] \
-					[MAP_NAME_TO_IDX[color_name_match[2].lower()]] = \
-					nrm_colors
+		colors = self._fetch_colors(part)
 
 		######DEBUG BLOCK
 		self.logger.log(19, f"Color infs:\n{colors}")
-		#self.dump_color_palette(colors)
+		if self.flag & FLAGS.DUMP_PALETTE:
+			p = self.dump_color_palette(colors)
+			self._save_image(p, Bodypart("palette"))
 
 		self.logger.log(25, f"Generating overlay image...")
 		hard_mask_arr = numpy.array(hard_mask)
@@ -293,8 +306,7 @@ class SkinGenerator():
 				part = part.lwr, date = datetime.datetime.now().strftime("%d%m%Y-%H%M%S"))
 		targetpath = Path(self.out_dir, (f_stub + ".png"))
 		self.logger.log(25, f"Saving generated texture to {targetpath}")
-		# TODO: OVERWRITE CHECKS!
-		if targetpath.exists() and (not self.no_ask):
+		if targetpath.exists() and (not (self.flag & FLAGS.NO_ASK)):
 			self.logger.log(30, f"File {targetpath} already exists!")
 			while True:
 				userchoice = input("Overwrite it? (Y/N) > ").lower()
@@ -306,7 +318,7 @@ class SkinGenerator():
 					break
 				else:
 					self.logger.log(50, "What"); sys.exit()
-		img.save(targetpath)
+		img.save(targetpath, format = "PNG")
 
 if __name__ == "__main__":
 	argparser = argparse.ArgumentParser(formatter_class = argparse.RawTextHelpFormatter)
@@ -316,10 +328,6 @@ if __name__ == "__main__":
 		"format like CD_<Class>_Skin_<Skin_name>_SF .")
 	argparser.add_argument("-out", "-o", default = os.getcwd(), help = \
 		"Directory to save generated files to." )
-	argparser.add_argument("-noask", default = False, action = "store_true", help = \
-		"On certain uncertanties (overwriting files etc.) do not prompt the user to\n"
-		"confirm/cancel an operation, always pick the one that resumes execution.\n" \
-		"===## NOT IMPLEMENTED YET ##===")
 	argparser.add_argument("-outname", default = "final_{part}", dest = "out_fmt", help = \
 		"Name of the output file. Will be .format()-ted with the following fed into it:\n"
 		"\tclass_ : Player class the skin is for\n"
@@ -330,24 +338,46 @@ if __name__ == "__main__":
 		"\"Siren_BlueB_head.png\". ")
 	argparser.add_argument("-s", default = 0, action = "count", dest = "silence", help = \
 		"Shut the script up to varying degrees (-s, -ss, -sss) ")
-	argparser.add_argument("-debug", default = 0, action = "count", dest = "debug", help = \
+	argparser.add_argument("-noask", action = "append_const", dest = "flag", const = FLAGS.NO_ASK, help = \
+		"On certain uncertanties (overwriting files etc.) do not prompt the user to\n"
+		"confirm/cancel an operation, always pick the one that resumes execution.")
+	argparser.add_argument("-debug", action = "append_const", dest = "flag", const = FLAGS.DEBUG, help = \
 		"Decreases the logging threshold by 6. Basically counteracts two \"-s\".")
+	argparser.add_argument("-palette", action = "append_const", dest = "flag", const = FLAGS.DUMP_PALETTE,
+		help = "Creates a color palette, for debug purposes.")
+	argparser.add_argument("-exc-head", action = "append_const", dest = "flag", const = FLAGS.EXCLUDE_HEAD,
+		help = "Do not generate a head texture.")
+	argparser.add_argument("-exc-body", action = "append_const", dest = "flag", const = FLAGS.EXCLUDE_BODY,
+		help = "Do not generate a body texture.")
+	argparser.add_argument("-keepwhite", action = "append_const", dest = "flag", const = FLAGS.KEEP_WHITE,
+		help = "As a hacky fix, if a color is too white (All channels > 235), its alpha will be set to 0."
+		"The reason for this is that skins such as Krieg's or faces would appear way brighter than"
+		"they should be.")
 
 	if len(sys.argv) == 1:
 		argparser.print_help()
 		sys.exit()
 
 	args = argparser.parse_args()
+	# Prevent directory traversal.
 	for pathsep in PATHSEPS:
 		if pathsep in args.out_fmt:
 			SKINGEN_LOGGER.log(50, "Can not have directory separators in output file format!")
 			sys.exit()
-	try:
+	try: # Test the outformat.
 		args.out_fmt.format(class_ = "test", skin_name = "test", part = "test", date = "test")
 	except (IndexError, KeyError, ValueError):
 		SKINGEN_LOGGER.log(50, "Invalid format string for output!")
 		sys.exit()
 
-	sg = SkinGenerator(in_dir = args.in_, out_dir = args.out, no_ask = args.noask,
-			silence = (args.silence - (args.debug * 2)), out_fmt = args.out_fmt)
+	# Calculate the flagnumber
+	flag = 0
+	if args.flag is not None:
+		for i in args.flag:
+			flag |= i
+
+	sg = SkinGenerator(in_dir = args.in_, out_dir = args.out, out_fmt = args.out_fmt,
+			silence = (args.silence - (((flag & FLAGS.DEBUG) // FLAGS.DEBUG) * 2)), flag = flag,
+			logger = SKINGEN_LOGGER)
+
 	sg.run()
