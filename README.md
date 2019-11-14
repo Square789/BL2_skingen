@@ -4,11 +4,11 @@ At the moment, this project is a stub and barely functional.
 # How to use:
  * Download and extract the repo somewhere.
  * Install the required python modules: `pip install -r requirements.txt`
- * Compile the cython files to binaries by running `setup.bat` (for manual comiling check [Manually compiling cython modules](#manually-compiling-cython-modules))
+ * Compile the cython files to binaries by running `setup.bat` (for manual compiling check [Manually compiling cython modules](#manually-compiling-cython-modules))
  * To extract the packets from Borderlands 2 use [UE Viewer/umodel](https://www.gildor.org/en/projects/umodel). The filepaths are hardcoded to locate the files the way UE Viewer extracts them.
- * Navigate a terminal to the repo directory.
+ * Navigate a terminal to where you cloned the repository (The directory `skingen.py` is located in).
  * Run the program as follows: `py skingen.py -in C:\full\path\to\folder\CD_Assassin_Skin_OrangeD_SF`
-  * This will save files in the current working directory, to specify another directory use the -out CL arg.
+  * This will save files in the current working directory, to specify another directory use the `-out <filepath>` command line argument.
 
 If a result did not conform to your expectations (and it's damn likely it won't), feel free to open up an issue. Note that decals are a next point on the list, but I want to get the base functionality stable enough.
 
