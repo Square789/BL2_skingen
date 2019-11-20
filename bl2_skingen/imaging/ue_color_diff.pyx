@@ -19,15 +19,15 @@ cdef np.uint8_t col_median(np.uint8_t a, np.uint8_t b, np.uint8_t percentage):
 	# Returns median value between input values; if percentage is 0, return a, if percentage is 255 return b
 	return scale_int(a, (255 - percentage)) + scale_int(b, percentage)
 
-@cython.cdivision(False)
+@cython.cdivision(True)
 cdef np.uint8_t swoop(np.uint8_t a, np.uint8_t b):
-	# Fancy mathematics, possibly optimizable just a bit more.
+	# Fancy mathematics
 	if a == 0 and b == 0:
 		return 127
 	if a >= b:
-		return 127+int((1-(b/a))*128)
+		return 127+<np.uint8_t>((1-(b/a))*128)
 	else:
-		return 127-int((1-(a/b))*127)
+		return 127-<np.uint8_t>((1-(a/b))*127)
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
