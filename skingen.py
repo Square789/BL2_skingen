@@ -20,6 +20,7 @@ from PIL import Image, ImageFilter, ImageDraw
 from bl2_skingen.unreal_notation import Parser as UParser
 from bl2_skingen.unreal_notation import UnrealNotationParseError
 from bl2_skingen.log_formatter import SkingenLogFormatter
+from bl2_skingen.argparse_formatter import SkingenArgparseFormatter
 from bl2_skingen.flags import FLAGS
 # from bl2_skingen.imaging.overlay import overlay_3D # pylint: disable=import-error, no-name-in-module
 # from bl2_skingen.imaging.darken import darken # pylint: disable=import-error, no-name-in-module
@@ -321,25 +322,25 @@ class SkinGenerator():
 		img.save(targetpath, format = "PNG")
 
 if __name__ == "__main__":
-	argparser = argparse.ArgumentParser(formatter_class = argparse.RawTextHelpFormatter)
+	argparser = argparse.ArgumentParser(formatter_class = SkingenArgparseFormatter)
 
 	argparser.add_argument("-in", default = os.getcwd(), dest = "in_", help = \
-		"Input directory from the extracted Unreal Package. It should follow a\n" \
-		"format like CD_<Class>_Skin_<Skin_name>_SF .")
+		"Input directory from the extracted Unreal Package. It should follow a " \
+		"format like CD_<Class>_Skin_<Skin_name>_SF.")
 	argparser.add_argument("-out", "-o", default = os.getcwd(), help = \
-		"Directory to save generated files to." )
+		"Directory to save generated files to.")
 	argparser.add_argument("-outname", default = "final_{part}", dest = "out_fmt", help = \
 		"Name of the output file. Will be .format()-ted with the following fed into it:\n"
 		"\tclass_ : Player class the skin is for\n"
 		"\tskin_name : Internal Skin name, taken from the input directory\n"
 		"\tpart : one of \"head\" or \"body\"\n"
 		"\tdate : Date as DDMMYYYY-HHmmSS\n"
-		"For example, \"{class_}_{skin_name}_{part}\" would result in output files being called\n"
-		"\"Siren_BlueB_head.png\". ")
+		"For example, \"{class_}_{skin_name}_{part}\" would result in output files being called "
+		"\"Siren_BlueB_head.png\".")
 	argparser.add_argument("-s", default = 0, action = "count", dest = "silence", help = \
 		"Shut the script up to varying degrees (-s, -ss)")
 	argparser.add_argument("-noask", action = "append_const", dest = "flag", const = FLAGS.NO_ASK, help = \
-		"On certain uncertanties (overwriting files etc.) do not prompt the user to\n"
+		"On certain uncertanties (overwriting files etc.) do not prompt the user to "
 		"confirm/cancel an operation, always pick the one that resumes execution.")
 	argparser.add_argument("-debug", action = "append_const", dest = "flag", const = FLAGS.DEBUG, help = \
 		"Decreases the logging threshold by 6. Basically counteracts two \"-s\".")
@@ -349,9 +350,9 @@ if __name__ == "__main__":
 		help = "Do not generate a head texture.")
 	argparser.add_argument("-exc-body", action = "append_const", dest = "flag", const = FLAGS.EXCLUDE_BODY,
 		help = "Do not generate a body texture.")
-	argparser.add_argument("-keepwhite", action = "append_const", dest = "flag", const = FLAGS.KEEP_WHITE,
-		help = "As a hacky fix, if a color is too white (All channels > 235), its alpha will be set to 0.\n"
-		"The reason for this is that skins such as Krieg's or faces would appear way brighter than\n"
+	argparser.add_argument("-keep-white", action = "append_const", dest = "flag", const = FLAGS.KEEP_WHITE,
+		help = "As a hacky fix, if a color is too white (All channels > 235), its alpha will be set to 0. "
+		"The reason for this is that skins such as Krieg's or faces would appear way brighter than "
 		"they should be. With this switch, you can turn that behavior off.")
 
 	if len(sys.argv) == 1:
