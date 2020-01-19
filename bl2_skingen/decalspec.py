@@ -1,8 +1,8 @@
 """Provides the method parse_decalspec, which does fancy stuff."""
 import re
 RE_DECALSPEC = re.compile(
-	r"^(-?\d+)(%?)\s+(-?\d+)(%?)\s+(\d*\.?\d+)\s+(\d*\.?\d+)(%?)" \
-	r"(?:\s+(\d*\.?\d+)(%?))?(?:\s+(y|n))?\s*$"
+	r"^(-?\d+)(%?)\s+(-?\d+)(%?)\s+(\d*\.?\d+)\s+(\d*\.?\d+)" \
+	r"(?:\s+(\d*\.?\d+))?(?:\s+(y|n))?\s*$"
 )
 # 0: Global match
 # 1: posx (int)
@@ -11,10 +11,8 @@ RE_DECALSPEC = re.compile(
 # 4: "" or "%", indicates whether posy should be treated relatively.
 # 5: rot (float)
 # 6: scale0 (float)
-# 7: "" or "%", indicates whether scale should be treated relatively.
-# 8: scale1 (float) *
-# 9: "" or "%", indicates whether scale1 should be treated relatively. *
-# 10: repeat ("" or "y" or "n") *
+# 7: scale1 (float) *
+# 8: repeat ("" or "y" or "n") *
 
 class Decalspec():
 	def __init__(self, posx, posy, rot, scalex, scaley, repeat):
@@ -24,6 +22,7 @@ class Decalspec():
 		self.scalex = scalex
 		self.scaley = scaley
 		self.repeat = repeat
+		print(self)
 
 	def __repr__(self):
 		return ("<Decalspec posx: {}, posy: {}, rotation: {}, scalex: {}, "
@@ -39,36 +38,33 @@ def validate_decalspec(spec):
 		return False
 	return True
 
-def parse_decalspec(spec, dim_x, dim_y):
+def parse_decalspec(spec, base_x, base_y):
+	"""
+	Parses the spec and configures potential relatives with
+	additional parameters.
+	spec : str | Decalspec string
+	base_x : int | Size of entire base image along x axis
+	base_y : int | Size of entire base image along y axis
+	"""
 	matchobj = RE_DECALSPEC.match(spec)
 	if matchobj[2] == "%":
-		posx = (int(matchobj[1])/100) * dim_x
+		posx = (int(matchobj[1])/100) * base_x
 	else:
 		posx = int(matchobj[1])
 	if matchobj[4] == "%":
-		posy = (int(matchobj[3])/100) * dim_y
+		posy = (int(matchobj[3])/100) * base_y
 	else:
 		posy = int(matchobj[3])
 	rot = float(matchobj[5])
-	if matchobj[8] is None:
+	if matchobj[7] is None:
 		#bi-axis scale
-		if matchobj[7] == "%":
-			scalex = (float(matchobj[6])/100) * dim_x
-			scaley = (float(matchobj[6])/100) * dim_y
-		else:
-			scalex = float(matchobj[6])
-			scaley = scalex
+		scalex = (float(matchobj[6]))
+		scaley = scalex
 	else:
 		#for-each axis scale
-		if matchobj[7] == "%":
-			scalex = (float(matchobj[6])/100) * dim_x
-		else:
-			scalex = float(matchobj[6])
-		if matchobj[9] == "%": # If 8 got detected, 9 will be "" or "%"
-			scaley = (float(matchobj[8])/100) * dim_y
-		else:
-			scaley = float(matchobj[8])
-	if matchobj[10] == "y":
+		scalex = (float(matchobj[6]))
+		scaley = (float(matchobj[7]))
+	if matchobj[8] == "y":
 		repeat = True
 	else:
 		repeat = False

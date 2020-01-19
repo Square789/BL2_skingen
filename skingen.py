@@ -23,6 +23,7 @@ from bl2_skingen.unreal_notation import UnrealNotationParseError
 from bl2_skingen.log_formatter import SkingenLogFormatter
 from bl2_skingen.argparser import get_argparser
 from bl2_skingen.decalspec import parse_decalspec, validate_decalspec
+from bl2_skingen.props import unify_props
 from bl2_skingen.flags import FLAGS
 from bl2_skingen.imaging.apply_decal import apply_decal
 from bl2_skingen.imaging.multiply_sqrt import multiply
@@ -58,14 +59,27 @@ MAP_COLOR_TO_IDX = {"A":0, "B":1, "C":2}
 MAP_NAME_TO_IDX = {"shadow":0, "midtone":1, "hilight":2}
 MAP_CHNL_TO_IDX = {"R":0, "G":1, "B":2, "A":3}
 
+FALLBACK_DECAL_COL = numpy.array([0, 0, 0, 255], dtype = numpy.uint8)
+DEF_DECALSPEC = {
+	"Assassin":  {"head": "", "body": ""},
+	"Mechro":    {"head": "", "body": ""},
+	"Mercenary": {"head": "", "body": ""},
+	"Soldier":   {"head": "", "body": ""},
+	"Siren":     {"head": "", "body": ""},
+	"Psycho":    {"head": "", "body": ""},
+}
+
 logging.getLogger().setLevel(0) # this magically works, whoop-de-doo
 
 class Bodypart():
-	"""Small namespace for different files of Head/Body.
+	"""
+	Small namespace for different files of Head/Body.
 	Name will be retrievable by the properties cap, lwr and upr.
 	"""
 	props = None
 	props_dict = None
+	colors = None
+	decal_color = None
 	dif = None
 	msk = None
 	nrm = None
@@ -210,14 +224,15 @@ class SkinGenerator():
 				u_prsr = UParser(h.read())
 			try:
 				res = u_prsr.parse()
-			except UnrealNotationParseError:
-				self.logger.log(50, f"Error parsing Unreal Notation file")
+			except UnrealNotationParseError as exc:
+				self.logger.log(50, f"Error parsing Unreal Notation file: {exc}")
 				sys.exit()
+			#print(unify_props(res))
 			part.props_dict = res
 
 	def _get_textures(self):
 		"""Reads textures from self.body.props_dict and
-		self.head.props_dics, then checks whether they exist (as tga).
+		self.head.props_dict, then checks whether they exist (as tga).
 		If they do, stores them in the respective objects.
 		"""
 		for part in (self.body, self.head):
@@ -239,13 +254,18 @@ class SkinGenerator():
 				self.logger.log(20, f"\t{attr} {part.cap}: {tmp_pat.name}")
 
 	def _fetch_colors(self, part):
-		"""Reads the part's props_dict and return a three-dimensional
-		numpy array, where:
+		"""
+		Reads the part's props_dict and places all findable colors into
+		the part's `colors` attribute as a numpy array, where:
 		[0]: A, [1]: B, [2]: C
 		[x][0]: "shadow", [x][1]: "mid", [x][2]: "hilight"
 		[x][y][0]: R, [x][y][1]: G, [x][y][2]: B, [x][y][3]: A
+		If decal colors can be found, a 4-value numpy array will be findable
+		at `decal_color`. If they can not be found, fallback decal color will be
+		used.
 		"""
 		colors = numpy.ndarray((3, 3, 4), dtype = numpy.uint8)
+		decal_color = None
 		colors[:] = 255 # Sometimes colors are not specified, set them to full then
 
 		for i in part.props_dict["VectorParameterValues"]:
@@ -254,9 +274,9 @@ class SkinGenerator():
 				nrm_colors = [0, 0, 0, 0]
 				mul = 1
 				for val in i["ParameterValue"].values():
-					val = float(val.strip())
+					val = float(val.strip()) * mul
 					if val > 1:
-						mul = 1/val
+						mul = 1 / val
 				for chnl, val in i["ParameterValue"].items():
 					nrm_colors[MAP_CHNL_TO_IDX[chnl]] = \
 						round(((float(val.strip())) * 255) * mul)
@@ -268,7 +288,19 @@ class SkinGenerator():
 				colors[MAP_COLOR_TO_IDX[color_name_match[1]]] \
 					[MAP_NAME_TO_IDX[color_name_match[2].lower()]] = \
 					nrm_colors
-		return colors
+			if i.get("ParameterName") == "p_DecalColor":
+				mul = 1
+				for v in i["ParameterValue"].values():
+					v = float(v.strip()) * mul
+					if v > 1:
+						mul = 1 / val
+				for j, k in i["ParameterValue"].items():
+					cols[MAP_CHNL_TO_IDX[j]] = round(float(k.strip()) * 255 * mul)
+		setattr(part, "colors", colors)
+		if decal_color is None:
+			setattr(part, "decal_color", FALLBACK_DECAL_COL.copy())
+		else:
+			setattr(part, "decal_color", decal_color)
 
 	def _get_decal(self, part):
 		"""
@@ -282,6 +314,8 @@ class SkinGenerator():
 		for i, j in enumerate(part.props_dict["TextureParameterValues"]):
 			curtexparam = part.props_dict["TextureParameterValues"][i]
 			if curtexparam["ParameterName"] == "p_Decal":
+				if curtexparam["ParameterValue"] in ("", "None"):
+					self.logger.log(25, "Part has no decal associated with it.")
 				tmp = RE_TEXTURE_UE_INTERNAL_PATH.search(curtexparam["ParameterValue"])
 				if tmp is None:
 					self.logger.log(30, "Error while locating decal. Key found, but could not"
@@ -289,12 +323,14 @@ class SkinGenerator():
 					break
 				decalimg = Path(self.in_dir, TEXTURE_FILE.format(tmp[1].split(UE_TEX_SEP)[-1]))
 				if not decalimg.exists():
-					self.logger.log(30, "Decal image does not exist.")
+					self.logger.log(30, "Decal image not found on disk.")
 					return None
 				break
+		else: #No key "p_Decal" was encountered
+			self.logger.log(25, "Part has no decal associated with it.")
 		return decalimg
 
-	def _stamp_decal(self, overlay_arr, hard_mask_arr, decalpath, decalspec):
+	def _stamp_decal(self, overlay_arr, hard_mask_arr, decalpath, decalspec, decal_color):
 		"""
 		Applies decal to `overlay_arr`
 
@@ -302,16 +338,21 @@ class SkinGenerator():
 			containing the overlay image generated so far.
 		hard_mask_arr : numpy.ndarray[np.uint8, ndim = 3] | Numpy array
 			containing the hard mask used to format decal.
-		decalpath : str;pathlib.Path | Full path to the decal image.
+		decalpath : str;pathlib.Path | Path to the decal image.
 		decalspec : bl2_skingen.decalspec.Decalspec | Decalspec
-			containing absolute values.
+			containing absolute pos transform values.
+		decalcolors : numpy.ndarray[np.uint8, ndim = 1] | Numpy array containing
+			the coloring information for the decal, [R, G, B, A]
 		"""
 		decal_image = Image.open(decalpath)
 		processed_decal_arr = \
 			apply_decal(
 				decal_image,
 				hard_mask_arr,
-				decalspec.posx, decalspec.posy)
+				decal_color,
+				decalspec.posx, decalspec.posy,
+				decalspec.rot,
+				decalspec.scalex, decalspec.scaley)
 		blend_inplace(processed_decal_arr, overlay_arr)
 		Image.fromarray(overlay_arr).show()
 		#raise NotImplementedError()
@@ -337,19 +378,19 @@ class SkinGenerator():
 		hard_mask = msk_img.resize((difx, dify), box = (difx/2, 0.0, float(difx), float(dify)))
 
 		self.logger.log(20, f"Reading and converting color information...")
-		colors = self._fetch_colors(part)
+		self._fetch_colors(part)
 
 		######DEBUG BLOCK
-		self.logger.log(19, f"Color infs:\n{colors}")
+		self.logger.log(19, f"Color infs:\n{part.colors}")
 		if self.flag & FLAGS.DUMP_PALETTE:
-			p = self.dump_color_palette(colors)
+			p = self.dump_color_palette(part.colors)
 			self._save_image(p, Bodypart("palette"))
 		######
 
 		self.logger.log(25, f"Generating overlay image...")
 		hard_mask_arr = numpy.array(hard_mask)
 		soft_mask_arr = numpy.array(soft_mask)
-		overlay_arr = ue_color_diff(hard_mask_arr, soft_mask_arr, colors)
+		overlay_arr = ue_color_diff(hard_mask_arr, soft_mask_arr, part.colors)
 
 		self.logger.log(25, f"Seeking decal...")
 		decalpath = self._get_decal(part)
@@ -358,15 +399,16 @@ class SkinGenerator():
 			if self.decalspec is None:
 				self.logger.log(25, "Decal found, but no decalspec supplied; skipping.")
 			else:
-				self.logger.log(25, "Applying decal...")
+				self.logger.log(25, "Getting decal color and applying decal...")
 				self._stamp_decal(
 					overlay_arr,
 					hard_mask_arr,
+					part.decal_color,
 					decalpath,
-					parse_decalspec(self.decalspec, difx, dify),)
-	
-		else:
-			self.logger.log(25, f"No decal found.")
+					parse_decalspec(
+						self.decalspec,
+						difx, dify)
+				)
 
 		self.logger.log(25, f"Merging overlay and base image...")
 		dif_img_arr = numpy.array(dif_img)
