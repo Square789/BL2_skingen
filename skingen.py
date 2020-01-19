@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-# Borderlands 2 Skin generator, (c) 2019 Square789
+# Borderlands 2 Skin generator, (c) 2019 - 2020 Square789
 if __name__ != "__main__":
 	raise RuntimeError("Please run this script directly.")
+# pylint: disable=import-error, no-name-in-module
 
 import sys
 import os
@@ -20,17 +21,18 @@ from PIL import Image, ImageFilter, ImageDraw
 from bl2_skingen.unreal_notation import Parser as UParser
 from bl2_skingen.unreal_notation import UnrealNotationParseError
 from bl2_skingen.log_formatter import SkingenLogFormatter
-from bl2_skingen.argparse_formatter import SkingenArgparseFormatter
+from bl2_skingen.argparser import get_argparser
+from bl2_skingen.decalspec import parse_decalspec, validate_decalspec
 from bl2_skingen.flags import FLAGS
-# from bl2_skingen.imaging.overlay import overlay_3D # pylint: disable=import-error, no-name-in-module
-# from bl2_skingen.imaging.darken import darken # pylint: disable=import-error, no-name-in-module
-from bl2_skingen.imaging.multiply_sqrt import multiply # pylint: disable=import-error, no-name-in-module
-from bl2_skingen.imaging.ue_color_diff import ue_color_diff # pylint: disable=import-error, no-name-in-module
+from bl2_skingen.imaging.apply_decal import apply_decal
+from bl2_skingen.imaging.multiply_sqrt import multiply
+from bl2_skingen.imaging.blend_inplace import blend_inplace
+from bl2_skingen.imaging.ue_color_diff import ue_color_diff
 
 __author__ = "Square789"
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
-PATHSEPS = (os.path.sep, "\\", "/", "..")
+BAD_PATH_CHARS = (os.path.sep, "\\", "/", "..", ":", "*", ">", "<", "|")
 
 # Flex tape the PIL.Image module's logger
 logging.getLogger("PIL.Image").setLevel(60)
@@ -89,21 +91,27 @@ class SkinGenerator():
 	skin_name = None
 	skin_type = None
 
-	def __init__(self, logger, in_dir, out_dir, out_fmt, silence, flag):
+	def __init__(self, logger, in_dir, out_dir, out_fmt, silence, flag, decalspec = None):
+		"""logger: Logger to be used by the skingenerator.
+		in_dir: Input directory to be read from.
+		out_dir: Directory result files should be written to.
+		out_fmt: Format string to name the output files after.
+		silence: Integer to change the logger's sensitivity.
+		flag: Flagnumber.
+		decalspec: None or an acceptable decalspec String.
+		"""
 		self.in_dir = Path(in_dir)
 		self.out_dir = Path(out_dir)
 		self.in_dir = self.in_dir.absolute()
 		self.out_dir = self.out_dir.absolute()
 		self.flag = flag
 		self.out_fmt = out_fmt
+		self.decalspec = decalspec
 
 		self.logger = logger
 		if silence > 3: silence = 3
 		self.logger.setLevel(21 + (silence * 3))
 
-		self._determine_params()
-
-	def _determine_params(self):
 		for i in CLASSES:
 			if i in self.in_dir.stem:
 				self.class_ = i
@@ -166,8 +174,13 @@ class SkinGenerator():
 				draw_agent.rectangle(
 					(x_offset * 64 + 16 * (x_offset + 1), y_offset * 64 + 16 * (y_offset + 1),
 					((x_offset + 1) * 64) + 16 * x_offset, (y_offset + 1) * 64 + 16* y_offset),
-					fill = tuple([int(round(i)) for i in (shm[0], shm[1], shm[2], shm[3])]), )
-				draw_agent.text( (x_offset * 64 + 16 * (x_offset + 1), y_offset * 64 + 16 * (y_offset + 1) + 64), f"{color_names[cname_i]} {shm_names[sname_i]}", fill = (0, 0, 0, 255) )
+					fill = tuple([int(round(i)) for i in (shm[0], shm[1], shm[2], shm[3])])
+				)
+				draw_agent.text(
+					(x_offset * 64 + 16 * (x_offset + 1), y_offset * 64 + 16 * (y_offset + 1) + 64),
+					f"{color_names[cname_i]} {shm_names[sname_i]}",
+					fill = (0, 0, 0, 255)
+				)
 				x_offset += 1
 				sname_i += 1
 			x_offset = 0
@@ -189,7 +202,7 @@ class SkinGenerator():
 
 	def _parse_props_files(self):
 		"""Assumes both self.body and self.head contain links to the
-		props files, parses those and stores colouring information in
+		props files, parses those and stores information as a dict in
 		the part's props_dict attribute.
 		"""
 		for part in (self.body, self.head):
@@ -233,7 +246,7 @@ class SkinGenerator():
 		[x][y][0]: R, [x][y][1]: G, [x][y][2]: B, [x][y][3]: A
 		"""
 		colors = numpy.ndarray((3, 3, 4), dtype = numpy.uint8)
-		colors[:] = 255 # Sometimes, colors are not specified, set them to full then
+		colors[:] = 255 # Sometimes colors are not specified, set them to full then
 
 		for i in part.props_dict["VectorParameterValues"]:
 			color_name_match = RE_DEFINES_CHNL_COL.match(i["ParameterName"])
@@ -244,26 +257,69 @@ class SkinGenerator():
 					val = float(val.strip())
 					if val > 1:
 						mul = 1/val
-
 				for chnl, val in i["ParameterValue"].items():
 					nrm_colors[MAP_CHNL_TO_IDX[chnl]] = \
 						round(((float(val.strip())) * 255) * mul)
-
 				if not (self.flag & FLAGS.KEEP_WHITE):
 					if nrm_colors[0] > 235 and nrm_colors[1] > 235 and nrm_colors[2] > 235:
 						nrm_colors[3] = 0 # Wonky; so far all white has been overlayed with
 						# skin, turning it brighter than it should be. This may cause problems
 						# with skins such as Zer0's "Whiteout" however.
-
 				colors[MAP_COLOR_TO_IDX[color_name_match[1]]] \
 					[MAP_NAME_TO_IDX[color_name_match[2].lower()]] = \
 					nrm_colors
 		return colors
 
+	def _get_decal(self, part):
+		"""
+		Searches through a part's props_dict and looks for a element called
+		p_Decal. If it is encountered, reads the value of that element, resolves
+		it to a path based on in_dir and the UEViewer image extraction scheme,
+		checks whether the path exists and finally returns it as a Path object.
+		If the decal or the image do not exist, None is returned.
+		"""
+		decalimg = None
+		for i, j in enumerate(part.props_dict["TextureParameterValues"]):
+			curtexparam = part.props_dict["TextureParameterValues"][i]
+			if curtexparam["ParameterName"] == "p_Decal":
+				tmp = RE_TEXTURE_UE_INTERNAL_PATH.search(curtexparam["ParameterValue"])
+				if tmp is None:
+					self.logger.log(30, "Error while locating decal. Key found, but could not"
+						" determine image path.")
+					break
+				decalimg = Path(self.in_dir, TEXTURE_FILE.format(tmp[1].split(UE_TEX_SEP)[-1]))
+				if not decalimg.exists():
+					self.logger.log(30, "Decal image does not exist.")
+					return None
+				break
+		return decalimg
+
+	def _stamp_decal(self, overlay_arr, hard_mask_arr, decalpath, decalspec):
+		"""
+		Applies decal to `overlay_arr`
+
+		overlay_arr : numpy.ndarray[np.uint8, ndin = 3] | Numpy array
+			containing the overlay image generated so far.
+		hard_mask_arr : numpy.ndarray[np.uint8, ndim = 3] | Numpy array
+			containing the hard mask used to format decal.
+		decalpath : str;pathlib.Path | Full path to the decal image.
+		decalspec : bl2_skingen.decalspec.Decalspec | Decalspec
+			containing absolute values.
+		"""
+		decal_image = Image.open(decalpath)
+		processed_decal_arr = \
+			apply_decal(
+				decal_image,
+				hard_mask_arr,
+				decalspec.posx, decalspec.posy)
+		blend_inplace(processed_decal_arr, overlay_arr)
+		Image.fromarray(overlay_arr).show()
+		#raise NotImplementedError()
+
 	def _generate_image(self, part):
 		self.logger.log(20, f"Opening {part.dif}")
 		dif_img = Image.open(part.dif)
-		x, y = dif_img.size
+		difx, dify = dif_img.size
 
 		self.logger.log(20, f"Opening {part.msk} and expanding")
 		msk_img = Image.open(part.msk)
@@ -272,13 +328,13 @@ class SkinGenerator():
 			sys.exit()
 
 		m_x, m_y = msk_img.size
-
-		if m_x != x or m_y != y:
-			self.logger.log(50, "Well this shouldn't happen but the dif and mask images are of different sizes.")
+		if m_x != difx or m_y != dify:
+			self.logger.log(50, "Well this shouldn't happen but the dif and mask images are of"
+				" different sizes.")
 			sys.exit()
 
-		soft_mask = msk_img.resize((x, y), box = (0.0, 0.0, x/2, float(y)))
-		hard_mask = msk_img.resize((x, y), box = (x/2, 0.0, float(x), float(y)), resample = Image.NEAREST)
+		soft_mask = msk_img.resize((difx, dify), box = (0.0, 0.0, difx/2, float(dify)))
+		hard_mask = msk_img.resize((difx, dify), box = (difx/2, 0.0, float(difx), float(dify)))
 
 		self.logger.log(20, f"Reading and converting color information...")
 		colors = self._fetch_colors(part)
@@ -288,11 +344,29 @@ class SkinGenerator():
 		if self.flag & FLAGS.DUMP_PALETTE:
 			p = self.dump_color_palette(colors)
 			self._save_image(p, Bodypart("palette"))
+		######
 
 		self.logger.log(25, f"Generating overlay image...")
 		hard_mask_arr = numpy.array(hard_mask)
 		soft_mask_arr = numpy.array(soft_mask)
 		overlay_arr = ue_color_diff(hard_mask_arr, soft_mask_arr, colors)
+
+		self.logger.log(25, f"Seeking decal...")
+		decalpath = self._get_decal(part)
+		if decalpath is not None:
+			self.logger.log(20, f"Decal found: {decalpath}")
+			if self.decalspec is None:
+				self.logger.log(25, "Decal found, but no decalspec supplied; skipping.")
+			else:
+				self.logger.log(25, "Applying decal...")
+				self._stamp_decal(
+					overlay_arr,
+					hard_mask_arr,
+					decalpath,
+					parse_decalspec(self.decalspec, difx, dify),)
+	
+		else:
+			self.logger.log(25, f"No decal found.")
 
 		self.logger.log(25, f"Merging overlay and base image...")
 		dif_img_arr = numpy.array(dif_img)
@@ -300,12 +374,27 @@ class SkinGenerator():
 		self._save_image(Image.fromarray(final_arr), part)
 
 	def _save_image(self, img, part):
-		"""Choose a target path based on class variables, the current bodypart,
-		which has to be supplied, perform a bunch of checks and ask user
-		whether they want to overwrite an existing file."""
-		f_stub = self.out_fmt.format(class_ = self.class_, skin_name = self.skin_name,
+		"""
+		Choose a target path based on class variables, the current bodypart,
+		which has to be supplied and save the image.
+		Asks user whether they want to overwrite an existing file or create
+		non-existing directories.
+		"""
+		f_stub = self.out_fmt.format(class_ = self.class_, skin = self.skin_name,
 				part = part.lwr, date = datetime.datetime.now().strftime("%d%m%Y-%H%M%S"))
 		targetpath = Path(self.out_dir, (f_stub + ".png"))
+		if not self.out_dir.exists():
+			if not (self.flag & FLAGS.NO_ASK):
+				while True:
+					self.logger.log(30, "Target directory does not seem to exist.")
+					userchoice = input("Create it? (Y/N) > ").lower()
+					if userchoice != "n" and userchoice != "y":
+						continue
+					if userchoice == "n":
+						return
+					if userchoice == "y":
+						break
+			os.makedirs(self.out_dir)
 		self.logger.log(25, f"Saving generated texture to {targetpath}")
 		if targetpath.exists() and (not (self.flag & FLAGS.NO_ASK)):
 			self.logger.log(30, f"File {targetpath} already exists!")
@@ -322,38 +411,7 @@ class SkinGenerator():
 		img.save(targetpath, format = "PNG")
 
 if __name__ == "__main__":
-	argparser = argparse.ArgumentParser(formatter_class = SkingenArgparseFormatter)
-
-	argparser.add_argument("-in", default = os.getcwd(), dest = "in_", help = \
-		"Input directory from the extracted Unreal Package. It should follow a " \
-		"format like CD_<Class>_Skin_<Skin_name>_SF.")
-	argparser.add_argument("-out", "-o", default = os.getcwd(), help = \
-		"Directory to save generated files to.")
-	argparser.add_argument("-outname", default = "final_{part}", dest = "out_fmt", help = \
-		"Name of the output file. Will be .format()-ted with the following fed into it:\n"
-		"\tclass_ : Player class the skin is for\n"
-		"\tskin_name : Internal Skin name, taken from the input directory\n"
-		"\tpart : one of \"head\" or \"body\"\n"
-		"\tdate : Date as DDMMYYYY-HHmmSS\n"
-		"For example, \"{class_}_{skin_name}_{part}\" would result in output files being called "
-		"\"Siren_BlueB_head.png\".")
-	argparser.add_argument("-s", default = 0, action = "count", dest = "silence", help = \
-		"Shut the script up to varying degrees (-s, -ss)")
-	argparser.add_argument("-noask", action = "append_const", dest = "flag", const = FLAGS.NO_ASK, help = \
-		"On certain uncertanties (overwriting files etc.) do not prompt the user to "
-		"confirm/cancel an operation, always pick the one that resumes execution.")
-	argparser.add_argument("-debug", action = "append_const", dest = "flag", const = FLAGS.DEBUG, help = \
-		"Decreases the logging threshold by 6. Basically counteracts two \"-s\".")
-	argparser.add_argument("-palette", action = "append_const", dest = "flag", const = FLAGS.DUMP_PALETTE,
-		help = "Creates a color palette, for debug purposes.")
-	argparser.add_argument("-exc-head", action = "append_const", dest = "flag", const = FLAGS.EXCLUDE_HEAD,
-		help = "Do not generate a head texture.")
-	argparser.add_argument("-exc-body", action = "append_const", dest = "flag", const = FLAGS.EXCLUDE_BODY,
-		help = "Do not generate a body texture.")
-	argparser.add_argument("-keep-white", action = "append_const", dest = "flag", const = FLAGS.KEEP_WHITE,
-		help = "As a hacky fix, if a color is too white (All channels > 235), its alpha will be set to 0. "
-		"The reason for this is that skins such as Krieg's or faces would appear way brighter than "
-		"they should be. With this switch, you can turn that behavior off.")
+	argparser = get_argparser()
 
 	if len(sys.argv) == 1:
 		argparser.print_help()
@@ -361,12 +419,13 @@ if __name__ == "__main__":
 
 	args = argparser.parse_args()
 	# Prevent directory traversal.
-	for pathsep in PATHSEPS:
+	for pathsep in BAD_PATH_CHARS:
 		if pathsep in args.out_fmt:
-			SKINGEN_LOGGER.log(50, "Can not have directory separators in output file format!")
+			SKINGEN_LOGGER.log(50, "Illegal characters in output file format! "
+				"Remove all occurrences of " + BAD_PATH_CHARS)
 			sys.exit()
 	try: # Test the outformat.
-		args.out_fmt.format(class_ = "test", skin_name = "test", part = "test", date = "test")
+		args.out_fmt.format(class_ = "test", skin = "test", part = "test", date = "test")
 	except (IndexError, KeyError, ValueError):
 		SKINGEN_LOGGER.log(50, "Invalid format string for output!")
 		sys.exit()
@@ -377,8 +436,14 @@ if __name__ == "__main__":
 		for i in args.flag:
 			flag |= i
 
+	# TODO decalscribbles: Take the square root of the decals colors
+	if args.decalspec is not None:
+		if not validate_decalspec(args.decalspec):
+			SKINGEN_LOGGER.log(30, "Bad decalspec, will ignore decal for this run.")
+			setattr(args, "decalspec", None)
+
 	sg = SkinGenerator(in_dir = args.in_, out_dir = args.out, out_fmt = args.out_fmt,
 			silence = (args.silence - (((flag & FLAGS.DEBUG) // FLAGS.DEBUG) * 2)), flag = flag,
-			logger = SKINGEN_LOGGER)
+			logger = SKINGEN_LOGGER, decalspec = args.decalspec)
 
 	sg.run()

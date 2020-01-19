@@ -2,27 +2,18 @@ import cython
 import numpy as np
 cimport numpy as np
 
-from libc.stdlib cimport rand
-cdef extern from "limits.h":
-	int INT_MAX
+from shared_funcs cimport scale_int, calc_alpha
 
 np.import_array()
 
 DTYPE = np.uint8
 ctypedef np.uint8_t DTYPE_t
 
-cdef np.uint8_t calc_alpha(np.uint8_t a, np.uint8_t b):
-	return scale_int(a, (255 - b)) + b
-
-cdef np.uint8_t scale_int(np.uint8_t a, np.uint8_t b):
-	# Multiplies two integers [0x0; 0xFF] as if they were floats. (127, 127) -> 65
-	cdef unsigned short product = (a * b) + 0x80
-	return ((product >> 8) + product) >> 8
-
 @cython.boundscheck(False)
 @cython.wraparound(False)
 cpdef np.ndarray[DTYPE_t, ndim = 3] overlay_3D(np.ndarray[DTYPE_t, ndim = 3] top_img, np.ndarray[DTYPE_t, ndim = 3] base_img):
-	"""Overlays top_img with base_img, returning a numpy array.
+	"""
+	Overlays top_img with base_img, returning a numpy array.
 	Top image should be supplied as RGBA, base image as RGB.
 	"""
 	if top_img.ndim != 3 or base_img.ndim != 3:
@@ -53,44 +44,12 @@ cpdef np.ndarray[DTYPE_t, ndim = 3] overlay_3D(np.ndarray[DTYPE_t, ndim = 3] top
 
 	for y in range(h):
 		for x in range(w):
-			#al = calc_alpha(top_img[y, x, 3], base_img[y, x, 3])
-			#res[y, x, 3] = al
-			# if rand() == 41.0:
-			# 	debug = True
-			# 	print(x, y)
-			# else:
-			# 	debug = False
-			#if al != 0:
-
 			for rgb in range(3):
-				# if top_img[y, x, rgb] > 127: # NONFUNCTIONAL CODE FOR DOUBLE ALPHA
-				# 	res[y, x, rgb] = scale_int(
-				# 			top_img[y, x, 3], ((
-				# 				scale_int(
-				# 					(scale_int(base_img[y, x, rgb], (255 - top_img[y, x, 3]) )),
-				# 					(scale_int(top_img[y, x, rgb], (255 - base_img[y, x, 3]) ))
-				# 				)
-				# 			))
-				# 		)
-				# else:
-				# 	res[y, x, rgb] = scale_int(
-				# 			top_img[y, x, 3], (255 - (
-				# 				scale_int(
-				# 					2 *(255 - scale_int(base_img[y, x, rgb], (255 - top_img[y, x, 3]))),
-				# 					(255 - scale_int(top_img[y, x, rgb], (255 - base_img[y, x, 3])))
-				# 				)
-				# 			))
-				# 		)
-				# res[y, x, rgb] = tmp_col + scale_int( (al - top_img[y, x, 3]), base_img[y, x, rgb])
 				if base_img[y, x, rgb] < 128:
 					tmp_col = 2 * scale_int(base_img[y, x, rgb], top_img[y, x, rgb])
 				else:
 					tmp_col = 255 - (2 * scale_int( (255 - base_img[y, x, rgb]), (255 - top_img[y, x, rgb])) )
 				res[y, x, rgb] = ( scale_int(top_img[y, x, 3], tmp_col) + scale_int((255 - top_img[y, x, 3]), base_img[y, x, rgb]) )
-
-			# if al < 191:
-			# 	print(al, x, y, "|", res[y,x,0], res[y,x,1], res[y,x,2])
-
 	return res
 
 cpdef np.ndarray[DTYPE_t, ndim = 3] experimental_overlay(np.ndarray[DTYPE_t, ndim = 3] top_img, np.ndarray[DTYPE_t, ndim = 3] base_img):
@@ -128,35 +87,11 @@ cpdef np.ndarray[DTYPE_t, ndim = 3] experimental_overlay(np.ndarray[DTYPE_t, ndi
 
 	for y in range(h):
 		for x in range(w):
-		# 	if rand() == 41.0:
-		# 		debug = True
-		# 		print(f"Following is for pixel ({x}, {y})")
-		# 	else:
-		# 		debug = False
-
 			al = calc_alpha(top_img[y, x, 3], base_img[y, x, 3])
 			res[y, x, 3] = al
 
 			if al != 0:
 				for rgb in range(3):
-					# if top_img[y, x, rgb] > 127: # NONFUNCTIONAL CODE FOR DOUBLE ALPHA
-					# 	tmp_col = scale_int(
-					# 		top_img[y, x, 3], ((
-					# 			scale_int(
-					# 				(scale_int(base_img[y, x, rgb], (255 - top_img[y, x, 3]) )),
-					# 				(scale_int(top_img[y, x, rgb], (255 - base_img[y, x, 3]) ))
-					# 			)
-					# 		))
-					# 	)
-					# else:
-					# 	tmp_col = scale_int(
-					# 		top_img[y, x, 3], (255 - (
-					# 			scale_int(
-					# 				2 *(255 - scale_int(base_img[y, x, rgb], (255 - top_img[y, x, 3]))),
-					# 				(255 - scale_int(top_img[y, x, rgb], (255 - base_img[y, x, 3])))
-					# 			)
-					# 		))
-					# 	)
 					if base_img[y, x, rgb] < 128:
 						tmp_col = 2 * scale_int(base_img[y, x, rgb], top_img[y, x, rgb])
 					else:

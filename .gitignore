@@ -7,8 +7,6 @@ __pycache__/
 *.lock
 test_scrn/
 test*.png
-_test_o.py
-_test_oa.py
 
 bl2_skingen/imaging/*.html
 bl2_skingen/imaging/*.c

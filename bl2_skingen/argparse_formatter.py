@@ -1,8 +1,6 @@
 import argparse
 import re
 
-WHITESPACE = ("\t", "\n", "\x0b", "\x0c", " ")
-
 WORDSEP_RE = re.compile(r'''
 	( # a newline char
 		\n
@@ -37,45 +35,35 @@ class SkingenArgparseFormatter(argparse.HelpFormatter):
 		chks = [c for c in WORDSEP_RE.split(text) if c]
 
 		out = []
-		chklist_i_start = 0
-		chklist_i = 0
+		idx_start = 0
+		idx = 0
 		chklist_ln = len(chks)
 		not_first_word = False
-		while chklist_i < chklist_ln:
+		while idx < chklist_ln:
 			curlnwidth = 0
 			line_empty = True
 			while True:
-				#Look at next word
-				#Append next word
-				#Does it cause width overflow?
-				#if yes
-				# step back one word
-				# is the line empty now?
-				# if yes
-				#  step fwd one word again, return
-				# if no
-				#  is last word whitespace?
-				#  if yes
-				#   chop off, return
-
-				if chklist_i > chklist_ln - 1:
+				if idx > chklist_ln - 1: # Out of chunks
 					break
-				if chks[chklist_i] == "\n":
-					chklist_i += 1
+				if chks[idx] == "\n": # Newline
+					idx += 1
 					break
-				curlnwidth += len(chks[chklist_i])
-				chklist_i += 1
+				curlnwidth += len(chks[idx])
+				idx += 1 # Append next chunk, add to current line length
 				if curlnwidth > (width - 1): # -1 due to the space
-					chklist_i -= 1
+					idx -= 1
 					if line_empty:
-						chklist_i += 1
+						idx += 1
 						break # We are done with this line. Width now ruined.
 					else:
 						break # Whitespace removed in outer loop layer
 				line_empty = False
 			out.append((not_first_word * " ") +
-				"".join(chks[chklist_i_start:chklist_i]).rstrip())
-			chklist_i_start = chklist_i
+				"".join(chks[idx_start:idx]).rstrip())
+			#if idx < chklist_ln: # Remove whitespace that may appear at start of newline
+			#	if chks[idx].isspace():
+			#		idx += 1
+			idx_start = idx
 			not_first_word = True
 
 		return out

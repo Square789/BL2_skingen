@@ -2,6 +2,8 @@ import cython
 import numpy as np
 cimport numpy as np
 
+from shared_funcs cimport scale_int
+
 np.import_array()
 
 DTYPE = np.uint8
@@ -21,17 +23,6 @@ cdef np.uint8_t *sq_root = [0, 15, 22, 27, 31, 35, 39, 42, 45, 47, 50, 52, 55, 5
 # Fast, so good enough I guess
 # int(sqrt(i / 255.0) * 255))
 
-cdef np.uint8_t scale_int(np.uint8_t a, np.uint8_t b):
-	# Multiplies two integers [0x0; 0xFF] as if they were floats. (127, 127) -> 65
-	cdef unsigned short product = (a * b) + 0x80
-	return ((product >> 8) + product) >> 8
-
-cdef np.uint8_t _min(np.uint8_t a, np.uint8_t b):
-	if a > b:
-		return b
-	else:
-		return a
-
 @cython.boundscheck(False)
 @cython.wraparound(False)
 cpdef np.ndarray[DTYPE_t, ndim = 3] multiply(np.ndarray[DTYPE_t, ndim = 3] top_img, np.ndarray[DTYPE_t, ndim = 3] base_img):
@@ -49,7 +40,7 @@ cpdef np.ndarray[DTYPE_t, ndim = 3] multiply(np.ndarray[DTYPE_t, ndim = 3] top_i
 		raise ValueError("Arrays must not be 0 in width or height!")
 
 	if top_img.shape[2] != 4:
-		raise ValueError("Top Array must specify 4-value arrays as its innermost layser; [RGBA]")
+		raise ValueError("Top Array must specify 4-value arrays as its innermost layer; [RGBA]")
 
 	if base_img.shape[2] != 3:
 		raise ValueError("Bottom array must specify 3-value arrays as its innermost layer; [RGB]")
