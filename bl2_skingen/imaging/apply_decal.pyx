@@ -80,7 +80,7 @@ cpdef insert_array(
 cpdef np.ndarray[DTYPE_t, ndim = 3] apply_decal(
 		decal,
 		np.ndarray[DTYPE_t, ndim = 3] hard_mask,
-		np.ndarray[DTYPE_t, ndim = 1], decal_colors,
+		np.ndarray[DTYPE_t, ndim = 1] decal_colors,
 		int pos_x = 0,
 		int pos_y = 0,
 		int rot = 0,
