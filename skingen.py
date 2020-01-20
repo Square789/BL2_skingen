@@ -77,7 +77,7 @@ class Bodypart():
 	Name will be retrievable by the properties cap, lwr and upr.
 	"""
 	props = None
-	props_dict = None
+	unif_props = None
 	colors = None
 	decal_color = None
 	dif = None
@@ -211,13 +211,12 @@ class SkinGenerator():
 				self.logger.log(50, f"COULD NOT FIND {tmp_pat}!")
 				sys.exit()
 			setattr(part, "props", tmp_pat)
-
 			self.logger.log(20, f"\tFound {tmp_pat.name}")
 
 	def _parse_props_files(self):
 		"""Assumes both self.body and self.head contain links to the
-		props files, parses those and stores information as a dict in
-		the part's props_dict attribute.
+		props files, parses those and stores information as a UnifiedProps
+		instance in the part's unif_props attribute.
 		"""
 		for part in (self.body, self.head):
 			with open(part.props, "r") as h:
@@ -227,35 +226,41 @@ class SkinGenerator():
 			except UnrealNotationParseError as exc:
 				self.logger.log(50, f"Error parsing Unreal Notation file: {exc}")
 				sys.exit()
-			#print(unify_props(res))
-			part.props_dict = res
+			try:
+				res = unify_props(res)
+			except Exception as exc:
+				self.logger.log(50, f"Unexpected error while parsing {part.props}")
+				sys.exit()
+			part.unif_props = res
 
 	def _get_textures(self):
-		"""Reads textures from self.body.props_dict and
-		self.head.props_dict, then checks whether they exist (as tga).
+		"""Reads textures from self.body.unif_props and
+		self.head.unif_props, then checks whether they exist (as tga).
 		If they do, stores them in the respective objects.
 		"""
 		for part in (self.body, self.head):
-			for param_dict in part.props_dict["TextureParameterValues"]:
-				if param_dict["ParameterName"] not in MAP_TEX_PARAM_NAME_TO_PART_ATTR:
+			for param_node in part.unif_props.TexturePV:
+				if param_node.name not in MAP_TEX_PARAM_NAME_TO_PART_ATTR:
 					continue
-				attr = MAP_TEX_PARAM_NAME_TO_PART_ATTR[param_dict["ParameterName"]]
+				attr = MAP_TEX_PARAM_NAME_TO_PART_ATTR[param_node.name]
 
-				ue_tex_name = RE_TEXTURE_UE_INTERNAL_PATH.search(param_dict["ParameterValue"])
+				ue_tex_name = RE_TEXTURE_UE_INTERNAL_PATH.search(param_node.value)
 				if not ue_tex_name:
-					self.logger.log(50, "Could not apply regex to get texture file.")
+					self.logger.log(50, f"Could not apply regex to get texture file: "
+						"{param_node.value}")
 					sys.exit()
 				ue_tex_name = ue_tex_name[1]
 				ue_tex_name = ue_tex_name.split(UE_TEX_SEP)[-1]
 				tmp_pat = Path(self.in_dir, TEXTURE_FILE.format(ue_tex_name))
 				if not tmp_pat.exists():
 					self.logger.log(50, f"Unable to find texture file {tmp_pat}!")
+					sys.exit()
 				setattr(part, attr, tmp_pat)
 				self.logger.log(20, f"\t{attr} {part.cap}: {tmp_pat.name}")
 
 	def _fetch_colors(self, part):
 		"""
-		Reads the part's props_dict and places all findable colors into
+		Reads the part's unif_props and places all findable colors into
 		the part's `colors` attribute as a numpy array, where:
 		[0]: A, [1]: B, [2]: C
 		[x][0]: "shadow", [x][1]: "mid", [x][2]: "hilight"
@@ -268,16 +273,16 @@ class SkinGenerator():
 		decal_color = None
 		colors[:] = 255 # Sometimes colors are not specified, set them to full then
 
-		for i in part.props_dict["VectorParameterValues"]:
-			color_name_match = RE_DEFINES_CHNL_COL.match(i["ParameterName"])
+		for node in part.unif_props.VectorPV:
+			color_name_match = RE_DEFINES_CHNL_COL.match(node.name)
 			if color_name_match:
 				nrm_colors = [0, 0, 0, 0]
 				mul = 1
-				for val in i["ParameterValue"].values():
+				for val in node.value.values():
 					val = float(val.strip()) * mul
 					if val > 1:
 						mul = 1 / val
-				for chnl, val in i["ParameterValue"].items():
+				for chnl, val in node.value.items():
 					nrm_colors[MAP_CHNL_TO_IDX[chnl]] = \
 						round(((float(val.strip())) * 255) * mul)
 				if not (self.flag & FLAGS.KEEP_WHITE):
@@ -288,14 +293,15 @@ class SkinGenerator():
 				colors[MAP_COLOR_TO_IDX[color_name_match[1]]] \
 					[MAP_NAME_TO_IDX[color_name_match[2].lower()]] = \
 					nrm_colors
-			if i.get("ParameterName") == "p_DecalColor":
+			if node.name == "p_DecalColor":
+				decal_color = FALLBACK_DECAL_COL.copy()
 				mul = 1
-				for v in i["ParameterValue"].values():
+				for v in node.value.values():
 					v = float(v.strip()) * mul
 					if v > 1:
 						mul = 1 / val
-				for j, k in i["ParameterValue"].items():
-					cols[MAP_CHNL_TO_IDX[j]] = round(float(k.strip()) * 255 * mul)
+				for j, k in node.value.items():
+					decal_color[MAP_CHNL_TO_IDX[j]] = round(float(k.strip()) * 255 * mul)
 		setattr(part, "colors", colors)
 		if decal_color is None:
 			setattr(part, "decal_color", FALLBACK_DECAL_COL.copy())
@@ -304,19 +310,18 @@ class SkinGenerator():
 
 	def _get_decal(self, part):
 		"""
-		Searches through a part's props_dict and looks for a element called
+		Searches through a part's unif_props and looks for a element called
 		p_Decal. If it is encountered, reads the value of that element, resolves
 		it to a path based on in_dir and the UEViewer image extraction scheme,
 		checks whether the path exists and finally returns it as a Path object.
 		If the decal or the image do not exist, None is returned.
 		"""
 		decalimg = None
-		for i, j in enumerate(part.props_dict["TextureParameterValues"]):
-			curtexparam = part.props_dict["TextureParameterValues"][i]
-			if curtexparam["ParameterName"] == "p_Decal":
-				if curtexparam["ParameterValue"] in ("", "None"):
+		for i, node in enumerate(part.unif_props.TexturePV):
+			if node.name == "p_Decal":
+				if node.value in ("", "None"):
 					self.logger.log(25, "Part has no decal associated with it.")
-				tmp = RE_TEXTURE_UE_INTERNAL_PATH.search(curtexparam["ParameterValue"])
+				tmp = RE_TEXTURE_UE_INTERNAL_PATH.search(node.value)
 				if tmp is None:
 					self.logger.log(30, "Error while locating decal. Key found, but could not"
 						" determine image path.")
@@ -332,7 +337,7 @@ class SkinGenerator():
 
 	def _stamp_decal(self, overlay_arr, hard_mask_arr, decalpath, decalspec, decal_color):
 		"""
-		Applies decal to `overlay_arr`
+		Applies decal to `overlay_arr` in-place.
 
 		overlay_arr : numpy.ndarray[np.uint8, ndin = 3] | Numpy array
 			containing the overlay image generated so far.

@@ -31,8 +31,8 @@ def get_argparser():
 		"Shut the script up to varying degrees (-s, -ss)")
 	argparser.add_argument("-decalspec", dest = "decalspec", const = None, help = \
 		"A set of positioning and rotation instructions for decals.\n"
-		"        PosX[%%] PosY[%%] Rot Scale0[%%] [Scale1[%%]] [Repeat]\n"
-		"    Ex.:50      50%%     270 100%%                  y\n"
+		"        PosX[%%] PosY[%%] Rot Scale0 [Scale1] [Repeat]\n"
+		"    Ex.:50      50%%     270 100             y\n"
 		"    PosX/Y: Position of the decal texture's central point in pixels.\n"
 		"    Rot   : Rotation of the decal around its center point.\n"
 		"    Scale : If only Scale0 is defined, factor to scale image by along both axes\n"
@@ -43,6 +43,8 @@ def get_argparser():
 	argparser.add_argument("-noask", action = "append_const", dest = "flag", const = FLAGS.NO_ASK, help = \
 		"On certain uncertanties (overwriting files etc.) do not prompt the user to "
 		"confirm/cancel an operation, always pick the one that resumes execution.")
+	argparser.add_argument("-nodecal", action = "append_const", dest = "flag", const = FLAGS.NO_DECAL, help = \
+		"Apply no decal.")
 	argparser.add_argument("-debug", action = "append_const", dest = "flag", const = FLAGS.DEBUG, help = \
 		"Decreases the logging threshold by 6. Basically counteracts two \"-s\".")
 	argparser.add_argument("-palette", action = "append_const", dest = "flag", const = FLAGS.DUMP_PALETTE,

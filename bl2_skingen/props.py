@@ -16,9 +16,9 @@ class UnifiedProps():
 
 		proc_dict : dict | The preprocessed dict as returned by unify_props()
 		"""
-		self.Texture = proc_dict["TextureParameterValues"]
-		self.Scalar = proc_dict["ScalarParameterValues"]
-		self.Vector = proc_dict["VectorParameterValues"]
+		self.TexturePV = proc_dict["TextureParameterValues"]
+		self.ScalarPV = proc_dict["ScalarParameterValues"]
+		self.VectorPV = proc_dict["VectorParameterValues"]
 		self.root_elems = \
 			{k: v for k ,v in proc_dict.items() if not k in (
 				"TextureParameterValues", "ScalarParameterValues",
@@ -142,6 +142,6 @@ def unify_props(p_dict):
 
 	p_dict : dict | As returned by bl2_skingen.unreal_notation.Parser.parse
 
-	Returns: 
+	Returns: UnifiedProps instance
 	"""
-	return process_dict(p_dict)
+	return UnifiedProps(process_dict(p_dict))
