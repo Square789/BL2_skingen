@@ -122,7 +122,6 @@ def process_dict(p_dict):
 			res[k] = v
 	return res
 
-
 # THIS HEAVILY ASSUMES THE LISTS WILL NEVER CONTAIN SOLO LITERALS
 def process_list(p_list):
 	res = UEParameterList()
