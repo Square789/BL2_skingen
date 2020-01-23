@@ -81,6 +81,7 @@ cpdef np.ndarray[DTYPE_t, ndim = 3] apply_decal(
 		decal,
 		np.ndarray[DTYPE_t, ndim = 3] hard_mask,
 		np.ndarray[DTYPE_t, ndim = 1] decal_colors,
+		np.ndarray[DTYPE_t, ndim = 1] decal_area,
 		int pos_x = 0,
 		int pos_y = 0,
 		int rot = 0,
@@ -95,7 +96,8 @@ cpdef np.ndarray[DTYPE_t, ndim = 3] apply_decal(
 
 	decal : PIL.Image
 	hard_mask : np.ndarray[uint_8, ndim=3]
-	decal_colors : 
+	decal_colors : np.ndarray[unit_8, ndim=1]
+	decal_area : np.ndarray[unit_8, ndim=1]
 	"""
 	#if type(decal) is not PIL.Image:
 	#	raise TypeError("Decal must be a PIL.Image!")
