@@ -59,7 +59,8 @@ MAP_COLOR_TO_IDX = {"A":0, "B":1, "C":2}
 MAP_NAME_TO_IDX = {"shadow":0, "midtone":1, "hilight":2}
 MAP_CHNL_TO_IDX = {"R":0, "G":1, "B":2, "A":3}
 
-FALLBACK_DECAL_COL = numpy.array([0, 0, 0, 255], dtype = numpy.uint8)
+DEF_DECAL_AREA = numpy.array([255, 255, 255], dtype = numpy.uint8)
+DEF_DECAL_COL = numpy.array([0, 0, 0, 255], dtype = numpy.uint8)
 DEF_DECALSPEC = {
 	"Assassin":  {"head": "", "body": ""},
 	"Mechro":    {"head": "", "body": ""},
@@ -74,12 +75,13 @@ logging.getLogger().setLevel(0) # this magically works, whoop-de-doo
 class Bodypart():
 	"""
 	Small namespace for different files of Head/Body.
-	Name will be retrievable by the properties cap, lwr and upr.
+	Name will be retrievable by t-he properties cap, lwr and upr.
 	"""
 	props = None
 	unif_props = None
 	colors = None
 	decal_color = None
+	decal_area = None
 	dif = None
 	msk = None
 	nrm = None
@@ -258,22 +260,39 @@ class SkinGenerator():
 				setattr(part, attr, tmp_pat)
 				self.logger.log(20, f"\t{attr} {part.cap}: {tmp_pat.name}")
 
-	def _fetch_colors(self, part):
+	def _fill_part_attrs(self, part):
 		"""
-		Reads the part's unif_props and places all findable colors into
-		the part's `colors` attribute as a numpy array, where:
-		[0]: A, [1]: B, [2]: C
-		[x][0]: "shadow", [x][1]: "mid", [x][2]: "hilight"
-		[x][y][0]: R, [x][y][1]: G, [x][y][2]: B, [x][y][3]: A
-		If decal colors can be found, a 4-value numpy array will be findable
-		at `decal_color`. If they can not be found, fallback decal color will be
-		used.
+		Reads the part's unif_props and:
+		- Place all findable colors into the part's `colors` attribute
+		as a numpy array, where:
+			[0]: A, [1]: B, [2]: C
+			[x][0]: "shadow", [x][1]: "mid", [x][2]: "hilight"
+			[x][y][0]: R, [x][y][1]: G, [x][y][2]: B, [x][y][3]: A
+		- If decal colors can be found, set `decal_color` to a 4-value numpy array.
+			If they can not be found, fallback decal color will be used.
+		- If decal area specifications can be found, they will be placed into
+			`decal_area` as a 3-value numpy array.
 		"""
 		colors = numpy.ndarray((3, 3, 4), dtype = numpy.uint8)
-		decal_color = None
 		colors[:] = 255 # Sometimes colors are not specified, set them to full then
+		decal_color = DEF_DECAL_COL.copy()
+		decal_area = DEF_DECAL_AREA.copy()
 
 		for node in part.unif_props.VectorPV:
+			if node.name == "p_DecalColor":
+				decal_color = DEF_DECAL_COL.copy()
+				mul = 1
+				for v in node.value.values():
+					v = float(v.strip()) * mul
+					if v > 1:
+						mul = 1 / val
+				for j, k in node.value.items():
+					decal_color[MAP_CHNL_TO_IDX[j]] = round(float(k.strip()) * 255 * mul)
+			if node.name == "p_DecalChannelScale":
+				for k, v in node.value.items():
+					if not v in MAP_CHNL_TO_IDX:
+						continue
+					decal_area[MAP_CHNL_TO_IDX[k]] = round(float(v.strip()) * 255)
 			color_name_match = RE_DEFINES_CHNL_COL.match(node.name)
 			if color_name_match:
 				nrm_colors = [0, 0, 0, 0]
@@ -284,7 +303,7 @@ class SkinGenerator():
 						mul = 1 / val
 				for chnl, val in node.value.items():
 					nrm_colors[MAP_CHNL_TO_IDX[chnl]] = \
-						round(((float(val.strip())) * 255) * mul)
+						round(float(val.strip()) * 255 * mul)
 				if not (self.flag & FLAGS.KEEP_WHITE):
 					if nrm_colors[0] > 235 and nrm_colors[1] > 235 and nrm_colors[2] > 235:
 						nrm_colors[3] = 0 # Wonky; so far all white has been overlayed with
@@ -293,20 +312,9 @@ class SkinGenerator():
 				colors[MAP_COLOR_TO_IDX[color_name_match[1]]] \
 					[MAP_NAME_TO_IDX[color_name_match[2].lower()]] = \
 					nrm_colors
-			if node.name == "p_DecalColor":
-				decal_color = FALLBACK_DECAL_COL.copy()
-				mul = 1
-				for v in node.value.values():
-					v = float(v.strip()) * mul
-					if v > 1:
-						mul = 1 / val
-				for j, k in node.value.items():
-					decal_color[MAP_CHNL_TO_IDX[j]] = round(float(k.strip()) * 255 * mul)
+		setattr(part, "decal_color", decal_color)
+		setattr(part, "decal_area", decal_area)
 		setattr(part, "colors", colors)
-		if decal_color is None:
-			setattr(part, "decal_color", FALLBACK_DECAL_COL.copy())
-		else:
-			setattr(part, "decal_color", decal_color)
 
 	def _get_decal(self, part):
 		"""
@@ -335,7 +343,8 @@ class SkinGenerator():
 			self.logger.log(25, "Part has no decal associated with it.")
 		return decalimg
 
-	def _stamp_decal(self, overlay_arr, hard_mask_arr, decalpath, decalspec, decal_color):
+	def _stamp_decal(self, overlay_arr, hard_mask_arr, decal_color,
+			decal_area, decalpath, decalspec):
 		"""
 		Applies decal to `overlay_arr` in-place.
 
@@ -346,8 +355,10 @@ class SkinGenerator():
 		decalpath : str;pathlib.Path | Path to the decal image.
 		decalspec : bl2_skingen.decalspec.Decalspec | Decalspec
 			containing absolute pos transform values.
-		decalcolors : numpy.ndarray[np.uint8, ndim = 1] | Numpy array containing
-			the coloring information for the decal, [R, G, B, A]
+		decal_color : numpy.ndarray[np.uint8, ndim = 1] | Numpy array containing
+			the coloring information for the decal in 4 ints, [R, G, B, A]
+		decal_area : numpy.ndarray[np.uint8, ndim = 1] | Numpy array containing
+			the decal area in 3 values.
 		"""
 		decal_image = Image.open(decalpath)
 		processed_decal_arr = \
@@ -355,6 +366,7 @@ class SkinGenerator():
 				decal_image,
 				hard_mask_arr,
 				decal_color,
+				decal_area,
 				decalspec.posx, decalspec.posy,
 				decalspec.rot,
 				decalspec.scalex, decalspec.scaley)
@@ -382,8 +394,8 @@ class SkinGenerator():
 		soft_mask = msk_img.resize((difx, dify), box = (0.0, 0.0, difx/2, float(dify)))
 		hard_mask = msk_img.resize((difx, dify), box = (difx/2, 0.0, float(difx), float(dify)))
 
-		self.logger.log(20, f"Reading and converting color information...")
-		self._fetch_colors(part)
+		self.logger.log(20, f"Reading and converting part information...")
+		self._fill_part_attrs(part)
 
 		######DEBUG BLOCK
 		self.logger.log(19, f"Color infs:\n{part.colors}")
@@ -404,11 +416,12 @@ class SkinGenerator():
 			if self.decalspec is None:
 				self.logger.log(25, "Decal found, but no decalspec supplied; skipping.")
 			else:
-				self.logger.log(25, "Getting decal color and applying decal...")
+				self.logger.log(25, "Applying decal...")
 				self._stamp_decal(
 					overlay_arr,
 					hard_mask_arr,
 					part.decal_color,
+					part.decal_area,
 					decalpath,
 					parse_decalspec(
 						self.decalspec,
