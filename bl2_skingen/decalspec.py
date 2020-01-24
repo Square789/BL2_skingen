@@ -22,7 +22,6 @@ class Decalspec():
 		self.scalex = scalex
 		self.scaley = scaley
 		self.repeat = repeat
-		print(self)
 
 	def __repr__(self):
 		return ("<Decalspec posx: {}, posy: {}, rotation: {}, scalex: {}, "

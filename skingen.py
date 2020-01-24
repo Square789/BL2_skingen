@@ -67,7 +67,7 @@ DEF_DECALSPEC = {
 	"Mercenary": {"head": "0 0 0 1", "body": "0 0 0 1"},
 	"Soldier":   {"head": "0 0 0 1", "body": "0 0 0 1"},
 	"Siren":     {"head": "0 0 0 1", "body": "0 0 0 1"},
-	"Psycho":    {"head": "0 0 0 1", "body": "0 0 0 1"},
+	"Psycho":    {"head": "0 0 0 1", "body": "211 785 0 0.6953125"},
 }
 
 logging.getLogger().setLevel(0) # this magically works, whoop-de-doo
@@ -217,7 +217,8 @@ class SkinGenerator():
 			self.logger.log(20, f"\tFound {tmp_pat.name}")
 
 	def _parse_props_files(self):
-		"""Assumes both self.body and self.head contain links to the
+		"""
+		Assumes both self.body and self.head contain links to the
 		props files, parses those and stores information as a UnifiedProps
 		instance in the part's unif_props attribute.
 		"""
@@ -259,7 +260,7 @@ class SkinGenerator():
 					self.logger.log(50, f"Unable to find texture file {tmp_pat}!")
 					sys.exit()
 				setattr(part, attr, tmp_pat)
-				self.logger.log(20, f"\t{attr} {part.cap}: {tmp_pat.name}")
+				self.logger.log(19, f"\t{attr} {part.cap}: {tmp_pat.name}")
 
 	def _fill_part_attrs(self, part):
 		"""
@@ -293,7 +294,9 @@ class SkinGenerator():
 					decal_color[MAP_CHNL_TO_IDX[j]] = round(float(k.strip()) * 255 * mul)
 			if node.name == "p_DecalChannelScale":
 				for k, v in node.value.items():
-					if not v in MAP_CHNL_TO_IDX:
+					if not k in MAP_CHNL_TO_IDX:
+						continue
+					if k == "A": # Doesn't support alpha
 						continue
 					decal_area[MAP_CHNL_TO_IDX[k]] = round(float(v.strip()) * 255)
 			color_name_match = RE_DEFINES_CHNL_COL.match(node.name)
@@ -378,7 +381,6 @@ class SkinGenerator():
 				decalspec.rot,
 				decalspec.scalex, decalspec.scaley)
 		blend_inplace(processed_decal_arr, overlay_arr)
-		Image.fromarray(overlay_arr, mode = "RGBA").show()
 		#raise NotImplementedError()
 
 	def _generate_image(self, part):
@@ -403,9 +405,12 @@ class SkinGenerator():
 
 		self.logger.log(20, f"Reading and converting part information...")
 		self._fill_part_attrs(part)
+		self.logger.log(19, f"Part colors:\n{part.colors}")
+		self.logger.log(19, f"Decal colors: {part.decal_color}")
+		self.logger.log(19, f"Decal area: {part.decal_area}")
+		self.logger.log(19, f"Decalspec: {part.decalspec.__repr__()}")
 
 		######DEBUG BLOCK
-		self.logger.log(19, f"Color infs:\n{part.colors}")
 		if self.flag & FLAGS.DUMP_PALETTE:
 			p = self.dump_color_palette(part.colors)
 			self._save_image(p, Bodypart("palette"))
@@ -416,23 +421,24 @@ class SkinGenerator():
 		soft_mask_arr = numpy.array(soft_mask)
 		overlay_arr = ue_color_diff(hard_mask_arr, soft_mask_arr, part.colors)
 
-		self.logger.log(25, f"Seeking decal...")
-		decalpath = self._get_decal(part)
-		if decalpath is not None:
-			self.logger.log(20, f"Decal found: {decalpath}")
-			self.logger.log(25, "Applying decal...")
-			self._stamp_decal(
-				overlay_arr,
-				hard_mask_arr,
-				part.decal_color,
-				part.decal_area,
-				decalpath,
-				parse_decalspec(
-					part.decalspec,
-					difx, dify)
-			)
-		else:
-			self.logger.log(25, "No decal found.")
+		if not (self.flag & FLAGS.NO_DECAL):
+			self.logger.log(25, f"Seeking decal...")
+			decalpath = self._get_decal(part)
+			if decalpath is not None:
+				self.logger.log(20, f"Decal found: {decalpath}")
+				self.logger.log(25, "Applying decal...")
+				self._stamp_decal(
+					overlay_arr,
+					hard_mask_arr,
+					part.decal_color,
+					part.decal_area,
+					decalpath,
+					parse_decalspec(
+						part.decalspec,
+						difx, dify)
+				)
+			else:
+				self.logger.log(25, "No decal found.")
 
 		self.logger.log(25, f"Merging overlay and base image...")
 		dif_img_arr = numpy.array(dif_img)

@@ -1,9 +1,10 @@
 import cython
-import PIL
+import PIL.Image
 import numpy as np
 cimport numpy as np
 
 from shared_funcs cimport calc_alpha, scale_int
+include "sqrt_arr.pxd"
 
 np.import_array()
 
@@ -82,7 +83,7 @@ cpdef insert_array(
 cpdef np.ndarray[DTYPE_t, ndim = 3] apply_decal(
 		decal,
 		np.ndarray[DTYPE_t, ndim = 3] hard_mask,
-		np.ndarray[DTYPE_t, ndim = 1] decal_colors,
+		np.ndarray[DTYPE_t, ndim = 1] decal_color,
 		np.ndarray[DTYPE_t, ndim = 1] decal_area,
 		int pos_x = 0,
 		int pos_y = 0,
@@ -98,7 +99,7 @@ cpdef np.ndarray[DTYPE_t, ndim = 3] apply_decal(
 
 	decal : PIL.Image
 	hard_mask : np.ndarray[uint_8, ndim = 3]
-	decal_colors : np.ndarray[unit_8, ndim = 1] | 4-value numpy array
+	decal_color : np.ndarray[unit_8, ndim = 1] | 4-value numpy array
 		containing the RGBA colors of the decal.
 	decal_area : np.ndarray[uint_8, ndim = 1]
 	"""
@@ -111,30 +112,43 @@ cpdef np.ndarray[DTYPE_t, ndim = 3] apply_decal(
 	decal = decal.resize((
 		int(scale_x * decal.size[0]),
 		int(scale_y * decal.size[1])))
-	decal = decal.rotate(rot, resample = PIL.Image.BICUBIC, expand = True)
+	decal = decal.rotate(rot, resample = PIL.Image.LANCZOS, expand = True)
 
 	insert_array(res, np.array(decal), pos_x, pos_y)
 	""""
 	### REPETITION HERE!
+	# TODO
 	"""
 	### HARD MASK REMOVAL HERE!
-	# cdef int y, x
-	# cdef np.uint8_t rgb
-	# cdef np.uint8_t area_channel = 0
-	# for y in range(res.shape[0]):
-	# 	for x in range(res.shape[1]):
-	# 		res[y, x, 3] = scale_int(0xFF, decal_area[area_channel])
+	cdef int y, x
+	cdef np.uint8_t rgb, tmp_col
+	cdef np.uint8_t area_channel = 0
+	for y in range(res.shape[0]):
+		for x in range(res.shape[1]):
+			if res[y, x, 3] == 0x00:
+				continue
+			if hard_mask[y, x, 0] == 0 and hard_mask[y, x, 1] == 0 and hard_mask[y, x, 2] == 0:
+				res[y, x, 3] = 0x00
+				continue
+			if hard_mask[y, x, 0] >= hard_mask[y, x, 1] and hard_mask[y, x, 0] >= hard_mask[y, x, 2]:
+				area_channel = 0
+			elif hard_mask[y, x, 1] >= hard_mask[y, x, 0] and hard_mask[y, x, 1] >= hard_mask[y, x, 2]:
+				area_channel = 1
+			elif hard_mask[y, x, 2] >= hard_mask[y, x, 0] and hard_mask[y, x, 2] >= hard_mask[y, x, 1]:
+				area_channel = 2
+			else:
+				print("this should not happen")
+			res[y, x, 3] = scale_int(res[y, x, 3], decal_area[area_channel])
 
-	"""
 	### COLORING HERE!
 	for y in range(res.shape[0]):
 		for x in range(res.shape[1]):
 			if res[y, x, 3] == 0:
 				continue
-			for rgba in range(4):
-				res[y, x, c] = decal_colors[y, x, c]
-	"""
+			for rgb in range(3):
+				#tmp_col = sq_root[scale_int(decal_color[rgb], res[y, x, rgb])]
+				#res[y, x, rgb] = tmp_col
+				# Apparently, square rooting not neccessary for decal.
+				res[y, x, rgb] = scale_int(decal_color[rgb], res[y, x, rgb])
 
-	# yeah complete this. returned array should be laid over the generated image
-	# at the supplied position, using regular alpha composition
 	return res
