@@ -62,12 +62,12 @@ MAP_CHNL_TO_IDX = {"R":0, "G":1, "B":2, "A":3}
 DEF_DECAL_AREA = numpy.array([255, 255, 255], dtype = numpy.uint8)
 DEF_DECAL_COL = numpy.array([0, 0, 0, 255], dtype = numpy.uint8)
 DEF_DECALSPEC = {
-	"Assassin":  {"head": "", "body": ""},
-	"Mechro":    {"head": "", "body": ""},
-	"Mercenary": {"head": "", "body": ""},
-	"Soldier":   {"head": "", "body": ""},
-	"Siren":     {"head": "", "body": ""},
-	"Psycho":    {"head": "", "body": ""},
+	"Assassin":  {"head": "0 0 0 1", "body": "0 0 0 1"},
+	"Mechro":    {"head": "0 0 0 1", "body": "0 0 0 1"},
+	"Mercenary": {"head": "0 0 0 1", "body": "0 0 0 1"},
+	"Soldier":   {"head": "0 0 0 1", "body": "0 0 0 1"},
+	"Siren":     {"head": "0 0 0 1", "body": "0 0 0 1"},
+	"Psycho":    {"head": "0 0 0 1", "body": "0 0 0 1"},
 }
 
 logging.getLogger().setLevel(0) # this magically works, whoop-de-doo
@@ -80,8 +80,9 @@ class Bodypart():
 	props = None
 	unif_props = None
 	colors = None
-	decal_color = None
 	decal_area = None
+	decal_color = None
+	decalspec = None
 	dif = None
 	msk = None
 	nrm = None
@@ -272,6 +273,8 @@ class SkinGenerator():
 			If they can not be found, fallback decal color will be used.
 		- If decal area specifications can be found, they will be placed into
 			`decal_area` as a 3-value numpy array.
+		If a global decalspec has been supplied, set the part's `decalspec`
+			attribute to it. Else, fill it from the default decalspecs.
 		"""
 		colors = numpy.ndarray((3, 3, 4), dtype = numpy.uint8)
 		colors[:] = 255 # Sometimes colors are not specified, set them to full then
@@ -312,6 +315,10 @@ class SkinGenerator():
 				colors[MAP_COLOR_TO_IDX[color_name_match[1]]] \
 					[MAP_NAME_TO_IDX[color_name_match[2].lower()]] = \
 					nrm_colors
+		if self.decalspec is not None:
+			setattr(part, "decalspec", self.decalspec)
+		else:
+			setattr(part, "decalspec", DEF_DECALSPEC[self.class_][part.lwr])
 		setattr(part, "decal_color", decal_color)
 		setattr(part, "decal_area", decal_area)
 		setattr(part, "colors", colors)
@@ -371,7 +378,7 @@ class SkinGenerator():
 				decalspec.rot,
 				decalspec.scalex, decalspec.scaley)
 		blend_inplace(processed_decal_arr, overlay_arr)
-		Image.fromarray(overlay_arr).show()
+		Image.fromarray(overlay_arr, mode = "RGBA").show()
 		#raise NotImplementedError()
 
 	def _generate_image(self, part):
@@ -413,20 +420,19 @@ class SkinGenerator():
 		decalpath = self._get_decal(part)
 		if decalpath is not None:
 			self.logger.log(20, f"Decal found: {decalpath}")
-			if self.decalspec is None:
-				self.logger.log(25, "Decal found, but no decalspec supplied; skipping.")
-			else:
-				self.logger.log(25, "Applying decal...")
-				self._stamp_decal(
-					overlay_arr,
-					hard_mask_arr,
-					part.decal_color,
-					part.decal_area,
-					decalpath,
-					parse_decalspec(
-						self.decalspec,
-						difx, dify)
-				)
+			self.logger.log(25, "Applying decal...")
+			self._stamp_decal(
+				overlay_arr,
+				hard_mask_arr,
+				part.decal_color,
+				part.decal_area,
+				decalpath,
+				parse_decalspec(
+					part.decalspec,
+					difx, dify)
+			)
+		else:
+			self.logger.log(25, "No decal found.")
 
 		self.logger.log(25, f"Merging overlay and base image...")
 		dif_img_arr = numpy.array(dif_img)

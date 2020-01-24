@@ -3,6 +3,8 @@ import PIL
 import numpy as np
 cimport numpy as np
 
+from shared_funcs cimport calc_alpha, scale_int
+
 np.import_array()
 
 DTYPE = np.uint8
@@ -84,7 +86,7 @@ cpdef np.ndarray[DTYPE_t, ndim = 3] apply_decal(
 		np.ndarray[DTYPE_t, ndim = 1] decal_area,
 		int pos_x = 0,
 		int pos_y = 0,
-		int rot = 0,
+		float rot = 0,
 		float scale_x = 1.0,
 		float scale_y = 1.0,
 		char repeat = False):
@@ -114,25 +116,23 @@ cpdef np.ndarray[DTYPE_t, ndim = 3] apply_decal(
 	insert_array(res, np.array(decal), pos_x, pos_y)
 	""""
 	### REPETITION HERE!
-
+	"""
 	### HARD MASK REMOVAL HERE!
-	cdef int y, x, c
-	cdef np.uint8_t rgb
-	cdef np.uint8_t rgba
-	cdef int c = res.shape[2]
-	for y in range(res.shape[0]):
-		for x in range(res.shape[1]):
-			for rgb in range(3):
-				if res[x, y, rgb] < 215:
+	# cdef int y, x
+	# cdef np.uint8_t rgb
+	# cdef np.uint8_t area_channel = 0
+	# for y in range(res.shape[0]):
+	# 	for x in range(res.shape[1]):
+	# 		res[y, x, 3] = scale_int(0xFF, decal_area[area_channel])
 
-
+	"""
 	### COLORING HERE!
 	for y in range(res.shape[0]):
 		for x in range(res.shape[1]):
 			if res[y, x, 3] == 0:
 				continue
-			for rgba in range(c):
-				res[y, x, c] = decal_colors[y, x, ]
+			for rgba in range(4):
+				res[y, x, c] = decal_colors[y, x, c]
 	"""
 
 	# yeah complete this. returned array should be laid over the generated image
