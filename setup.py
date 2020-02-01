@@ -28,15 +28,26 @@ if not only_needed:
 with open("README.md", "r") as h:
 	l_desc = h.read()
 
+with open("requirements.txt", "r") as h:
+	req = h.read().splitlines()
+
 setup(
 	name = "BL2_skingen",
-	version = "1.2.3",
+	version = "1.2.4",
 	description = "Utility to generate png files from Borderlands 2 in-game skin files.",
 	long_description = l_desc,
 	long_description_content_type = "text/markdown",
 	packages = ["bl2_skingen"],
 	ext_modules = cythonize(to_compile, language_level = "3"),
-	install_requires = ["numpy", "Pillow", "Cython"],
+	classifiers = [
+		"License :: OSI Approved :: MIT License",
+		"Natural Language :: English",
+		"Operating System :: Microsoft :: Windows",
+		"Programming Language :: Cython",
+		"Programming Language :: Python",
+		"Topic :: Multimedia :: Graphics :: Graphics Conversion",
+	],
+	install_requires = req,
 	include_dirs = [numpy.get_include()],
 	entry_points = {
 		"console_scripts": [
