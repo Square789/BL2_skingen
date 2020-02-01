@@ -56,15 +56,6 @@ class Parser():
 		next_key_name = key_regex[0]
 		self.pos += len(next_key_name)
 		if self.raw_file[self.pos] == "[":
-			# if in_list:
-			# 	is_list = False
-			# 	list_len = -1
-			# 	idx_re = RE_KEY_SUFFIX.search(self.raw_file, self.pos)
-			# 	if not idx_re:
-			# 		raise UnrealNotationParseError(f"Expected index at around {self.pos}")
-			# 	self.pos += len(idx_re[0])
-
-			#else:
 			is_list = True
 			len_re = RE_KEY_SUFFIX.search(self.raw_file, self.pos)
 			if not len_re:

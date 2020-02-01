@@ -2,18 +2,12 @@ import cython
 import numpy as np
 cimport numpy as np
 
+from shared_funcs cimport scale_int
+
 np.import_array()
 
 DTYPE = np.uint8
 ctypedef np.uint8_t DTYPE_t
-
-cdef np.uint8_t scale_int(np.uint8_t a, np.uint8_t b):
-	# Multiplies two integers [0x0; 0xFF] as if they were floats. (127, 127) -> 65
-	cdef unsigned short product = (a * b) + 0x80
-	return ((product >> 8) + product) >> 8
-
-cdef np.uint8_t calc_alpha(np.uint8_t a, np.uint8_t b):
-	return scale_int(a, (255 - b)) + b
 
 cdef np.uint8_t col_median(np.uint8_t a, np.uint8_t b, np.uint8_t percentage):
 	# Returns median value between input values; if percentage is 0, return a, if percentage is 255 return b
@@ -61,19 +55,16 @@ cpdef ue_color_diff(np.ndarray[DTYPE_t, ndim = 3] hard_mask, np.ndarray[DTYPE_t,
 	for y in range(h):
 		for x in range(w):
 			res[y, x, 3] = 0xFF
-			#if hard_mask[y, x, 0] > hard_mask[y, x, 1] and hard_mask[y, x, 0] > hard_mask[y, x, 2]:   # A
-			#	ccol = 0
-			#elif hard_mask[y, x, 1] > hard_mask[y, x, 0] and hard_mask[y, x, 1] > hard_mask[y, x, 2]: # B
-			#	ccol = 1
-			#elif hard_mask[y, x, 2] > hard_mask[y, x, 0] and hard_mask[y, x, 2] > hard_mask[y, x, 1]: # C
-			#	ccol = 2
-			if hard_mask[y, x, 0] > 210:
+			if hard_mask[y, x, 0] >= hard_mask[y, x, 1] and hard_mask[y, x, 0] >= hard_mask[y, x, 2]:   # A
 				ccol = 0
-			elif hard_mask[y, x, 1] > 210:
+			elif hard_mask[y, x, 1] >= hard_mask[y, x, 0] and hard_mask[y, x, 1] >= hard_mask[y, x, 2]: # B
 				ccol = 1
-			elif hard_mask[y, x, 2] > 210:
+			elif hard_mask[y, x, 2] >= hard_mask[y, x, 0] and hard_mask[y, x, 2] >= hard_mask[y, x, 1]: # C
 				ccol = 2
 			else:
+				res[y, x, 3] = 0x00
+				continue
+			if hard_mask[y, x, ccol] < 40:
 				res[y, x, 3] = 0x00
 				continue
 			dif = swoop(soft_mask[y, x, 0], soft_mask[y, x, 1])
