@@ -3,7 +3,7 @@ Utility to generate png files from Borderlands 2 in-game skin files.
 
 # How to use:
 ## Installation via PyPi
-This project is available on PyPi, however pre-compiled binaries only come for Python 3.7, Python 3.8 64bit.
+This project is available on [PyPi](https://pypi.org/project/BL2_skingen/), however pre-compiled binaries only come for Python 3.7, Python 3.8 64bit.
 If this meets your requirements, you can install it using `pip install BL2_skingen`, which will create an entry script called `skingen.exe`
 
 ## Manual installation
