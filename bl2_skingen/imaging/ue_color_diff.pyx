@@ -55,19 +55,16 @@ cpdef ue_color_diff(np.ndarray[DTYPE_t, ndim = 3] hard_mask, np.ndarray[DTYPE_t,
 	for y in range(h):
 		for x in range(w):
 			res[y, x, 3] = 0xFF
-			#if hard_mask[y, x, 0] > hard_mask[y, x, 1] and hard_mask[y, x, 0] > hard_mask[y, x, 2]:   # A
-			#	ccol = 0
-			#elif hard_mask[y, x, 1] > hard_mask[y, x, 0] and hard_mask[y, x, 1] > hard_mask[y, x, 2]: # B
-			#	ccol = 1
-			#elif hard_mask[y, x, 2] > hard_mask[y, x, 0] and hard_mask[y, x, 2] > hard_mask[y, x, 1]: # C
-			#	ccol = 2
-			if hard_mask[y, x, 0] > 210:
+			if hard_mask[y, x, 0] >= hard_mask[y, x, 1] and hard_mask[y, x, 0] >= hard_mask[y, x, 2]:   # A
 				ccol = 0
-			elif hard_mask[y, x, 1] > 210:
+			elif hard_mask[y, x, 1] >= hard_mask[y, x, 0] and hard_mask[y, x, 1] >= hard_mask[y, x, 2]: # B
 				ccol = 1
-			elif hard_mask[y, x, 2] > 210:
+			elif hard_mask[y, x, 2] >= hard_mask[y, x, 0] and hard_mask[y, x, 2] >= hard_mask[y, x, 1]: # C
 				ccol = 2
 			else:
+				res[y, x, 3] = 0x00
+				continue
+			if hard_mask[y, x, ccol] < 40:
 				res[y, x, 3] = 0x00
 				continue
 			dif = swoop(soft_mask[y, x, 0], soft_mask[y, x, 1])

@@ -148,7 +148,7 @@ cpdef np.ndarray[DTYPE_t, ndim = 3] apply_decal(
 			for rgb in range(3):
 				#tmp_col = sq_root[scale_int(decal_color[rgb], res[y, x, rgb])]
 				#res[y, x, rgb] = tmp_col
-				# Apparently, square rooting not neccessary for decal.
+				# Apparently, square rooting not necessary for decal.
 				res[y, x, rgb] = scale_int(decal_color[rgb], res[y, x, rgb])
 
 	return res

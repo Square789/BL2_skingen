@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 # Borderlands 2 Skin generator, (c) 2019 - 2020 Square789
-if __name__ != "__main__":
-	raise RuntimeError("Please run this script directly.")
 # pylint: disable=import-error, no-name-in-module
 
 import sys
@@ -31,7 +29,6 @@ from bl2_skingen.imaging.blend_inplace import blend_inplace
 from bl2_skingen.imaging.ue_color_diff import ue_color_diff
 
 __author__ = "Square789"
-__version__ = "1.2.0"
 
 BAD_PATH_CHARS = (os.path.sep, "\\", "/", "..", ":", "*", ">", "<", "|")
 
@@ -65,7 +62,7 @@ DEF_DECALSPEC = {
 	"Assassin":  {"head": "0 0 0 1", "body": "-50 210 10 1.2 1.6"},
 	"Mechro":    {"head": "0 0 0 1", "body": "750 594 354 0.85 0.7"},
 	"Mercenary": {"head": "0 0 0 1", "body": "260 250 180 1.05"}, # 250 250 180 1 ???
-	"Soldier":   {"head": "0 0 0 1", "body": "0 0 0 1"},
+	"Soldier":   {"head": "0 0 0 1", "body": "1414 1266 11 0.5 0.4"},
 	"Siren":     {"head": "0 0 0 1", "body": "1250 290 0 0.78"},
 	"Psycho":    {"head": "0 0 0 1", "body": "211 785 0 0.6953125"},
 }
@@ -479,7 +476,7 @@ class SkinGenerator():
 					self.logger.log(50, "What"); sys.exit()
 		img.save(targetpath, format = "PNG")
 
-if __name__ == "__main__":
+def main():
 	argparser = get_argparser()
 
 	if len(sys.argv) == 1:
@@ -516,3 +513,6 @@ if __name__ == "__main__":
 			logger = SKINGEN_LOGGER, decalspec = args.decalspec)
 
 	sg.run()
+
+if __name__ == "__main__":
+	main()
