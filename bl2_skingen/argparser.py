@@ -5,8 +5,8 @@ argparser responsible for grabbing parameters from the command line.
 import argparse
 import os
 
-from bl2_skingen.argparse_formatter import SkingenArgparseFormatter
-from bl2_skingen.flags import FLAGS
+from argparse_formatter import SkingenArgparseFormatter
+from flags import FLAGS
 
 def get_argparser():
 	"""Returns an argparser that is tailored to the skingenerator's

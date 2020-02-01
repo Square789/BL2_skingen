@@ -30,7 +30,7 @@ with open("README.md", "r") as h:
 
 setup(
 	name = "BL2_skingen",
-	version = "1.2.1",
+	version = "1.2.2",
 	description = "Utility to generate png files from Borderlands 2 in-game skin files.",
 	long_description = l_desc,
 	long_description_content_type = "text/markdown",
@@ -39,7 +39,7 @@ setup(
 	include_dirs = [numpy.get_include()],
 	entry_points = {
 		"console_scripts": [
-			"skingen = skingen:main",
+			"skingen = bl2_skingen.skingen:main",
 		]
 	},
 	url = "https://www.github.com/Square789/BL2_skingen/",

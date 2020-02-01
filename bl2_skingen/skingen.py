@@ -16,17 +16,17 @@ from math import log2
 import numpy # gotta get that sweet C array
 from PIL import Image, ImageFilter, ImageDraw
 
-from bl2_skingen.unreal_notation import Parser as UParser
-from bl2_skingen.unreal_notation import UnrealNotationParseError
-from bl2_skingen.log_formatter import SkingenLogFormatter
-from bl2_skingen.argparser import get_argparser
-from bl2_skingen.decalspec import parse_decalspec, validate_decalspec
-from bl2_skingen.props import unify_props
-from bl2_skingen.flags import FLAGS
-from bl2_skingen.imaging.apply_decal import apply_decal
-from bl2_skingen.imaging.multiply_sqrt import multiply
-from bl2_skingen.imaging.blend_inplace import blend_inplace
-from bl2_skingen.imaging.ue_color_diff import ue_color_diff
+from unreal_notation import Parser as UParser
+from unreal_notation import UnrealNotationParseError
+from log_formatter import SkingenLogFormatter
+from argparser import get_argparser
+from decalspec import parse_decalspec, validate_decalspec
+from props import unify_props
+from flags import FLAGS
+from imaging.apply_decal import apply_decal
+from imaging.multiply_sqrt import multiply
+from imaging.blend_inplace import blend_inplace
+from imaging.ue_color_diff import ue_color_diff
 
 __author__ = "Square789"
 
