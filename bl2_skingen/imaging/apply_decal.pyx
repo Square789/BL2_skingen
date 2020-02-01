@@ -112,7 +112,7 @@ cpdef np.ndarray[DTYPE_t, ndim = 3] apply_decal(
 	decal = decal.resize((
 		int(scale_x * decal.size[0]),
 		int(scale_y * decal.size[1])))
-	decal = decal.rotate(rot, resample = PIL.Image.LANCZOS, expand = True)
+	decal = decal.rotate(rot, resample = PIL.Image.BICUBIC, expand = True)
 
 	insert_array(res, np.array(decal), pos_x, pos_y)
 	""""

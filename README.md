@@ -18,10 +18,5 @@ If a result did not conform to your expectations (and it's damn likely it won't)
 You will need [Cython](https://pypi.org/project/Cython/) to compile the .pyx files at `bl2_skingen/imaging` to binary files suited for your system.
 Only `ue_color_diff.pyx` and `multiply_sqrt.pyx` are needed at the moment.
 Navigate a terminal to the folder and run:
-<<<<<<< HEAD
- * `py build_ue_color_diff.py build_ext --inplace`
- * `py build_multiply_sqrt.py build_ext --inplace`
-=======
- * `python build.py build_ext --build_needed_only` to only compile the modules that are currently being used.
- * `python build.py build_ext --inplace` to compile all modules
->>>>>>> 0ad233ff4504a94be525816a3dcb3a121bffdc30
+ * `build.py build_ext --inplace`
+ 

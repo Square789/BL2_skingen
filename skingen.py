@@ -62,11 +62,11 @@ MAP_CHNL_TO_IDX = {"R":0, "G":1, "B":2, "A":3}
 DEF_DECAL_AREA = numpy.array([255, 255, 255], dtype = numpy.uint8)
 DEF_DECAL_COL = numpy.array([0, 0, 0, 255], dtype = numpy.uint8)
 DEF_DECALSPEC = {
-	"Assassin":  {"head": "0 0 0 1", "body": "0 0 0 1"},
-	"Mechro":    {"head": "0 0 0 1", "body": "0 0 0 1"},
-	"Mercenary": {"head": "0 0 0 1", "body": "0 0 0 1"},
+	"Assassin":  {"head": "0 0 0 1", "body": "-50 210 10 1.2 1.6"},
+	"Mechro":    {"head": "0 0 0 1", "body": "750 594 354 0.85 0.7"},
+	"Mercenary": {"head": "0 0 0 1", "body": "260 250 180 1.05"}, # 250 250 180 1 ???
 	"Soldier":   {"head": "0 0 0 1", "body": "0 0 0 1"},
-	"Siren":     {"head": "0 0 0 1", "body": "0 0 0 1"},
+	"Siren":     {"head": "0 0 0 1", "body": "1250 290 0 0.78"},
 	"Psycho":    {"head": "0 0 0 1", "body": "211 785 0 0.6953125"},
 }
 
@@ -115,7 +115,7 @@ class SkinGenerator():
 		out_fmt: Format string to name the output files after.
 		silence: Integer to change the logger's sensitivity.
 		flag: Flagnumber.
-		decalspec: None or an acceptable decalspec String.
+		decalspec: None or an acceptable decalspec string.
 		"""
 		self.in_dir = Path(in_dir)
 		self.out_dir = Path(out_dir)
@@ -289,14 +289,12 @@ class SkinGenerator():
 				for v in node.value.values():
 					v = float(v.strip()) * mul
 					if v > 1:
-						mul = 1 / val
+						mul = 1 / v
 				for j, k in node.value.items():
 					decal_color[MAP_CHNL_TO_IDX[j]] = round(float(k.strip()) * 255 * mul)
 			if node.name == "p_DecalChannelScale":
 				for k, v in node.value.items():
-					if not k in MAP_CHNL_TO_IDX:
-						continue
-					if k == "A": # Doesn't support alpha
+					if not k in MAP_CHNL_TO_IDX or k == "A": # Doesn't support alpha
 						continue
 					decal_area[MAP_CHNL_TO_IDX[k]] = round(float(v.strip()) * 255)
 			color_name_match = RE_DEFINES_CHNL_COL.match(node.name)
@@ -316,8 +314,7 @@ class SkinGenerator():
 						# skin, turning it brighter than it should be. This may cause problems
 						# with skins such as Zer0's "Whiteout" however.
 				colors[MAP_COLOR_TO_IDX[color_name_match[1]]] \
-					[MAP_NAME_TO_IDX[color_name_match[2].lower()]] = \
-					nrm_colors
+					[MAP_NAME_TO_IDX[color_name_match[2].lower()]] = nrm_colors
 		if self.decalspec is not None:
 			setattr(part, "decalspec", self.decalspec)
 		else:
@@ -335,7 +332,7 @@ class SkinGenerator():
 		If the decal or the image do not exist, None is returned.
 		"""
 		decalimg = None
-		for i, node in enumerate(part.unif_props.TexturePV):
+		for node in part.unif_props.TexturePV:
 			if node.name == "p_Decal":
 				if node.value in ("", "None"):
 					self.logger.log(25, "Part has no decal associated with it.")
