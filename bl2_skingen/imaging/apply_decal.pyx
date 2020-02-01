@@ -4,7 +4,6 @@ import numpy as np
 cimport numpy as np
 
 from shared_funcs cimport calc_alpha, scale_int
-include "sqrt_arr.pxd"
 
 np.import_array()
 
@@ -101,7 +100,15 @@ cpdef np.ndarray[DTYPE_t, ndim = 3] apply_decal(
 	hard_mask : np.ndarray[uint_8, ndim = 3]
 	decal_color : np.ndarray[unit_8, ndim = 1] | 4-value numpy array
 		containing the RGBA colors of the decal.
-	decal_area : np.ndarray[uint_8, ndim = 1]
+	decal_area : np.ndarray[uint_8, ndim = 1] | A 3-value numpy array containing
+		the channels of the hard mask the decal should be visible on.
+	pos_x : int | x-position of the decal. May be negative.
+	pos_y : int | y-position of the decal. May be negative.
+	rot : float | Rotation of the decal in degrees.
+	scale_x : float | Scale along x-axis
+	scale_y : float | Scale along y-axis
+	repeat : char | (Interpreted as bool) Whether to repeat the decal along its
+		initial placement # TODO #
 	"""
 	#if type(decal) is not PIL.Image:
 	#	raise TypeError("Decal must be a PIL.Image!")

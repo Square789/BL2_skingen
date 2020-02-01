@@ -54,7 +54,7 @@ def get_argparser():
 		"    Rot   : Rotation of the decal around its center point.\n"
 		"    Scale : If only Scale0 is defined, factor to scale image by along both axes\n"
 		"        If Scale1 is defined, treat Scale0 as X- and Scale1 as Y-axis.\n"
-		"    Repeat: Either \"y\" or \"n\". Whether the decal should be repeated along the entire skin.\n"
+		"    Repeat: #TO BE IMPLEMENTED#\n"
 		"If a percent sign is set at the allowed positions, the preceding value will be "
 		"interpreted relatively to the decal dimensions.\n"
 		"It is recommended to exclude head or body with this command.")
