@@ -1,5 +1,5 @@
 import sys
-from setuptools import setup, Extension
+from setuptools import setup, find_packages, Extension
 
 only_needed = False
 if "--build_needed_only" in sys.argv:
@@ -30,10 +30,11 @@ with open("README.md", "r") as h:
 
 setup(
 	name = "BL2_skingen",
-	version = "1.2.2",
+	version = "1.2.3",
 	description = "Utility to generate png files from Borderlands 2 in-game skin files.",
 	long_description = l_desc,
 	long_description_content_type = "text/markdown",
+	packages = ["bl2_skingen"],
 	ext_modules = cythonize(to_compile, language_level = "3"),
 	install_requires = ["numpy", "Pillow", "Cython"],
 	include_dirs = [numpy.get_include()],
