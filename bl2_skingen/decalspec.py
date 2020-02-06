@@ -35,6 +35,13 @@ def validate_decalspec(spec):
 	matchobj = RE_DECALSPEC.search(spec)
 	if matchobj is None:
 		return False
+	if matchobj[7] is not None:
+		if float(matchobj[7]) < 0.05:
+			return False
+	if float(matchobj[6]) < 0.05:
+		return False
+	return True
+	
 	return True
 
 def parse_decalspec(spec, base_x, base_y):

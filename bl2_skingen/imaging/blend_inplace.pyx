@@ -33,14 +33,13 @@ cpdef np.ndarray[DTYPE_t, ndim = 3] blend_inplace(np.ndarray[DTYPE_t, ndim = 3] 
 		raise ValueError("Bottom array must specify 3-value arrays as its innermost layer; [RGBA]")
 
 	cdef int height, width, y, x
-	cdef np.uint8_t c, alpha
+	cdef np.uint8_t c
 
 	height = top_img.shape[0]
 	width = top_img.shape[1]
 	for y in range(height):
 		for x in range(width):
-			al = calc_alpha(top_img[y, x, 3], base_img[y, x, 3])
-			base_img[y, x, 3] = al
+			base_img[y, x, 3] = calc_alpha(top_img[y, x, 3], base_img[y, x, 3])
 			for c in range(3):
 				base_img[y, x, c] = scale_int(top_img[y, x, c], top_img[y, x, 3]) + \
 					scale_int(base_img[y, x, c], 255 - top_img[y, x, 3])

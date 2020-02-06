@@ -33,7 +33,7 @@ with open("requirements.txt", "r") as h:
 
 setup(
 	name = "BL2_skingen",
-	version = "1.2.5",
+	version = "1.3.0",
 	description = "Utility to generate png files from Borderlands 2 in-game skin files.",
 	long_description = l_desc,
 	long_description_content_type = "text/markdown",

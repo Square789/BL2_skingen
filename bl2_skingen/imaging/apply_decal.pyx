@@ -3,6 +3,7 @@ import PIL.Image
 import numpy as np
 cimport numpy as np
 
+from libc.math cimport sin, cos, sqrt
 from shared_funcs cimport calc_alpha, scale_int
 
 np.import_array()
@@ -10,17 +11,26 @@ np.import_array()
 DTYPE = np.uint8
 ctypedef np.uint8_t DTYPE_t
 
+cdef double torad(double deg):
+	return deg * 0.017453292519943295
+
+cdef half_pi = 1.5707963267948966
+
 @cython.boundscheck(False)
 @cython.wraparound(False)
-cpdef insert_array(
+cpdef char insert_array(
 		np.ndarray[DTYPE_t, ndim = 3] target,
 		np.ndarray[DTYPE_t, ndim = 3] source,
 		int offset_x = 0,
 		int offset_y = 0):
 	"""
-	Inserts source into target, designed for a 2-Dimensional image with RGBA at the lowest level.
+	Inserts source into target, designed for a 2-Dimensional images with
+	at most 4 channels at the lowest level.
 	Optionally offset the insertion by offset_x and offset_y.
-	If the offset is negative/source image is too large, it will be cut off accordingly.
+	If the offset is negative/source image is too large,
+	it will be cut off accordingly.
+	Returns 0 on success, returns 1 if the image was completely out of bounds
+	and modification would have been unnecessary.
 	"""
 	cdef int target_x = target.shape[1]
 	cdef int target_y = target.shape[0]
@@ -32,9 +42,9 @@ cpdef insert_array(
 	cdef int rngx_beg, rngx_end, rngy_beg, rngy_end, rng_chl, srcx_idx, srcy_idx
 
 	if offset_x > target_x or offset_y > target_y:
-		return
+		return 1
 	if offset_x + source_x <= 0 or offset_y + source_y <= 0:
-		return #Image out of bounds, would have no effect.
+		return 1 #Image out of bounds, would have no effect.
 
 	srcx_idx = 0
 	srcy_idx = 0
@@ -64,18 +74,62 @@ cpdef insert_array(
 	else:
 		rng_chl = source_c
 
-	cdef int y, x
-	cdef np.uint8_t rgba
-
-	cdef int yi, xi
+	cdef int y, x, yi, xi
+	cdef np.uint8_t rgb, alpha
 	yi = 0; xi = 0
-	for y in range(rngy_beg, rngy_end):
-		for x in range(rngx_beg, rngx_end):
-			for rgba in range(rng_chl):
-				target[y, x, rgba] = source[yi + srcy_idx, xi + srcx_idx, rgba]
-			xi += 1
-		xi = 0
-		yi += 1
+	if source_c == 4 and target_c == 4: # Regular alpha overlay
+		for y in range(rngy_beg, rngy_end):
+			for x in range(rngx_beg, rngx_end):
+				target[y, x, 3] = calc_alpha(
+					target[y, x, 3],
+					source[yi + srcy_idx, xi + srcx_idx, 3])
+				for rgb in range(rng_chl):
+					target[y, x, rgb] = scale_int(
+						source[yi + srcy_idx, xi + srcx_idx, rgb],
+						source[yi + srcy_idx, xi + srcx_idx, 3]
+					) + scale_int(
+						target[y, x, rgb],
+						255 - source[yi + srcy_idx, xi + srcx_idx, 3]
+					)
+				xi += 1
+			xi = 0
+			yi += 1
+
+	elif source_c == 4 and target_c <= 3:
+		for y in range(rngy_beg, rngy_end):
+			for x in range(rngx_beg, rngx_end):
+				for rgb in range(rng_chl):
+					target[y, x, rgb] = scale_int(
+						source[yi + srcy_idx, xi + srcx_idx, rgb],
+						source[yi + srcy_idx, xi + srcx_idx, 3])
+					+ scale_int(
+						target[y, x, rgb],
+						255 - source[yi + srcy_idx, xi + srcx_idx, 3]
+					)
+				xi += 1
+			xi = 0
+			yi += 1
+
+	elif source_c <= 3 and target_c == 4: # Set target alpha to 0xFF, overwrite source
+		for y in range(rngy_beg, rngy_end):
+			for x in range(rngx_beg, rngx_end):
+				target[y, x, 3] = 0xFF
+				for rgb in range(rng_chl):
+					target[y, x, rgb] = source[yi + srcy_idx, xi + srcx_idx, rgb]
+				xi += 1
+			xi = 0
+			yi += 1
+
+	elif rng_chl <= 3: # No alpha, complete overwrite.
+		for y in range(rngy_beg, rngy_end):
+			for x in range(rngx_beg, rngx_end):
+				for rgb in range(rng_chl):
+					target[y, x, rgb] = source[yi + srcy_idx, xi + srcx_idx, rgb]
+				xi += 1
+			xi = 0
+			yi += 1
+
+	return 0
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
@@ -86,9 +140,9 @@ cpdef np.ndarray[DTYPE_t, ndim = 3] apply_decal(
 		np.ndarray[DTYPE_t, ndim = 1] decal_area,
 		int pos_x = 0,
 		int pos_y = 0,
-		float rot = 0,
-		float scale_x = 1.0,
-		float scale_y = 1.0,
+		double rot = 0,
+		double scale_x = 1.0,
+		double scale_y = 1.0,
 		char repeat = False):
 	"""
 	Takes a decal image, hard mask and additional parameters (see the
@@ -108,7 +162,7 @@ cpdef np.ndarray[DTYPE_t, ndim = 3] apply_decal(
 	scale_x : float | Scale along x-axis
 	scale_y : float | Scale along y-axis
 	repeat : char | (Interpreted as bool) Whether to repeat the decal along its
-		initial placement # TODO #
+		initial placement.
 	"""
 	#if type(decal) is not PIL.Image:
 	#	raise TypeError("Decal must be a PIL.Image!")
@@ -118,18 +172,59 @@ cpdef np.ndarray[DTYPE_t, ndim = 3] apply_decal(
 
 	decal = decal.resize((
 		int(scale_x * decal.size[0]),
-		int(scale_y * decal.size[1])))
+		int(scale_y * decal.size[1]))
+	)
+	cdef int raw_size_x = decal.size[0]
+	cdef int raw_size_y = decal.size[1]
+
 	decal = decal.rotate(rot, resample = PIL.Image.BICUBIC, expand = True)
 
-	insert_array(res, np.array(decal), pos_x, pos_y)
-	""""
-	### REPETITION HERE!
-	# TODO
-	"""
-	### HARD MASK REMOVAL HERE!
-	cdef int y, x
+	cdef np.ndarray[DTYPE_t, ndim = 3] decal_array =  np.array(decal)
+
+	cdef int rel_lr_x = (int)((cos(<double>(torad(rot)))) * raw_size_x)
+	cdef int rel_lr_y = (int)((-sin(<double>(torad(rot)))) * raw_size_x)
+	cdef int rel_ud_x = (int)((cos(<double>(torad(rot)) + half_pi)) * raw_size_y)
+	cdef int rel_ud_y = (int)((-sin(<double>(torad(rot)) + half_pi)) * raw_size_y)
+
+	cdef int y, x # Loop variables
+	cdef int runs_for_x = 0
+	cdef int y_direction = -1
 	cdef np.uint8_t rgb, tmp_col
 	cdef np.uint8_t area_channel = 0
+
+	insert_array(res, decal_array, pos_x, pos_y)
+
+	### REPETITION HERE!
+	if repeat > 0:
+		x = 1; y = 0
+		while True:
+			while (insert_array(
+				res,
+				decal_array,
+				pos_x + (rel_lr_x * x) + (rel_ud_x * y),
+				pos_y + (rel_lr_y * x) + (rel_ud_y * y)) == 0
+			):
+				runs_for_x += 1
+				x += 1
+			x = -1
+			while (insert_array(
+				res,
+				decal_array,
+				pos_x + (rel_lr_x * x) + (rel_ud_x * y),
+				pos_y + (rel_lr_y * x) + (rel_ud_y * y)) == 0
+			):
+				runs_for_x += 1
+				x -= 1
+			if runs_for_x == 0:
+				if y_direction == 1:
+					break
+				y_direction = 1
+				y = 0 # will result in y = 1 in next run
+			runs_for_x = 0
+			y += y_direction
+			x = 0
+
+	### HARD MASK REMOVAL HERE!
 	for y in range(res.shape[0]):
 		for x in range(res.shape[1]):
 			if res[y, x, 3] == 0x00:

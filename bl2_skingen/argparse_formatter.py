@@ -28,8 +28,6 @@ class SkingenArgparseFormatter(argparse.HelpFormatter):
 	"""Argparse formatter to override the lacking ability of the default
 	formatter to display linebreaks. If '\\n' is encountered, a linebreak
 	will be forced, whitespace at the start of a line will be preserved.
-	Every line that is not the first one will receive a single space as
-	first character.
 	"""
 	def _split_lines(self, text, width):
 		chks = [c for c in WORDSEP_RE.split(text) if c]
@@ -58,11 +56,7 @@ class SkingenArgparseFormatter(argparse.HelpFormatter):
 					else:
 						break # Whitespace removed in outer loop layer
 				line_empty = False
-			out.append((not_first_word * " ") +
-				"".join(chks[idx_start:idx]).rstrip())
-			#if idx < chklist_ln: # Remove whitespace that may appear at start of newline
-			#	if chks[idx].isspace():
-			#		idx += 1
+			out.append("".join(chks[idx_start:idx]).rstrip())
 			idx_start = idx
 			not_first_word = True
 

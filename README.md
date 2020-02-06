@@ -17,6 +17,6 @@ If this meets your requirements, you can install it using `pip install BL2_sking
   * If you installed the PyPi package, the entry script will be placed in `%PYTHONPATH%/Scripts` and should be accessible with `skingen` anywhere if the location is in `PATH`.
   * If you installed the script manually, navigate a terminal to the directory, the script can be run there with `py <Installationdir>/skingen.py`
  * For help on options, run the script without any arguments.
- For example : `skingen -in C:\Skinfiles\CD_Assasin_OrangeD_SF -out C:\Skinfiles\GEN -exc-head`
+ Example : `skingen -in C:\Skinfiles\CD_Assasin_OrangeD_SF -out C:\Skinfiles\GEN -exc-head`
 
 If a result did not conform to your expectations (and it's damn likely it won't), feel free to open up an issue.

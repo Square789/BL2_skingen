@@ -9,8 +9,8 @@ from bl2_skingen.argparse_formatter import SkingenArgparseFormatter
 from bl2_skingen.flags import FLAGS
 
 def get_argparser():
-	"""Returns an argparser that is tailored to the skingenerator's
-	requirements.
+	"""
+	Returns an argparser that is tailored to the skingenerator's requirements.
 	"""
 	argparser = argparse.ArgumentParser(formatter_class = SkingenArgparseFormatter)
 
@@ -29,23 +29,27 @@ def get_argparser():
 		"\"Siren_BlueB_head.png\".")
 	argparser.add_argument("-s", default = 0, action = "count", dest = "silence", help = \
 		"Shut the script up to varying degrees (-s, -ss)")
-	argparser.add_argument("-noask", action = "append_const", dest = "flag", const = FLAGS.NO_ASK, help = \
+	argparser.add_argument("-noask", action = "append_const", dest = "flag",
+		const = FLAGS.NO_ASK, help = \
 		"On certain uncertanties (overwriting files etc.) do not prompt the user to "
 		"confirm/cancel an operation, always pick the one that resumes execution.")
-	argparser.add_argument("-nodecal", action = "append_const", dest = "flag", const = FLAGS.NO_DECAL, help = \
-		"Apply no decal.")
-	argparser.add_argument("-debug", action = "append_const", dest = "flag", const = FLAGS.DEBUG, help = \
+	argparser.add_argument("-nodecal", action = "append_const", dest = "flag",
+		const = FLAGS.NO_DECAL, help = "Apply no decal.")
+	argparser.add_argument("-debug", action = "append_const", dest = "flag",
+		const = FLAGS.DEBUG, help = \
 		"Decreases the logging threshold by 6. Basically counteracts two \"-s\".")
-	argparser.add_argument("-palette", action = "append_const", dest = "flag", const = FLAGS.DUMP_PALETTE,
-		help = "Creates a color palette, for debug purposes.")
-	argparser.add_argument("-exc-head", action = "append_const", dest = "flag", const = FLAGS.EXCLUDE_HEAD,
-		help = "Do not generate a head texture.")
-	argparser.add_argument("-exc-body", action = "append_const", dest = "flag", const = FLAGS.EXCLUDE_BODY,
-		help = "Do not generate a body texture.")
-	argparser.add_argument("-keep-white", action = "append_const", dest = "flag", const = FLAGS.KEEP_WHITE,
-		help = "As a hacky fix, if a color is too white (All channels > 235), its alpha will be set to 0. "
-		"The reason for this is that skins such as Krieg's or faces would appear way brighter than "
-		"they should be. With this switch, you can turn that behavior off.")
+	argparser.add_argument("-palette", action = "append_const", dest = "flag",
+		const = FLAGS.DUMP_PALETTE, help = "Creates a color palette, for debug purposes.")
+	argparser.add_argument("-exc-head", action = "append_const", dest = "flag",
+		const = FLAGS.EXCLUDE_HEAD, help = "Do not generate a head texture.")
+	argparser.add_argument("-exc-body", action = "append_const", dest = "flag",
+		const = FLAGS.EXCLUDE_BODY, help = "Do not generate a body texture.")
+	argparser.add_argument("-keep-white", action = "append_const", dest = "flag",
+		const = FLAGS.KEEP_WHITE,
+		help = "As a hacky fix, if a color is too white (All channels > 235), its "
+		"alpha will be set to 0. The reason for this is that skins such as Krieg's "
+		"or faces would appear way brighter than they should be. With this switch, "
+		"you can turn that behavior off.")
 	argparser.add_argument("-decalspec", dest = "decalspec", const = None, help = \
 		"A set of overriding positioning and rotation instructions for decals.\n"
 		"        PosX[%%] PosY[%%] Rot Scale0 [Scale1] [Repeat]\n"
@@ -54,7 +58,9 @@ def get_argparser():
 		"    Rot   : Rotation of the decal around its center point.\n"
 		"    Scale : If only Scale0 is defined, factor to scale image by along both axes\n"
 		"        If Scale1 is defined, treat Scale0 as X- and Scale1 as Y-axis.\n"
-		"    Repeat: #TO BE IMPLEMENTED#\n"
+		"        If a scaling arg is < 0.05, the decalspec is deemed bad, as this may"
+		"        cause severe CPU load with repeat set to true."
+		"    Repeat: Repeat texture.\n"
 		"If a percent sign is set at the allowed positions, the preceding value will be "
 		"interpreted relatively to the decal dimensions.\n"
 		"It is recommended to exclude head or body with this command.")

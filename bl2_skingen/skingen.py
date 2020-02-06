@@ -48,7 +48,7 @@ PROPSFILE = "MaterialInstanceConstant\\Mati_{}_{}.props.txt"
 
 TEXTURE_FILE = "Texture2D\\{}.tga"
 UE_TEX_SEP = "."
-RE_TEXTURE_UE_INTERNAL_PATH = re.compile(r"Texture2D'(.*)'") # NOTE: MAYBE \' IS A VALID ESC SEQUENCE
+RE_TEXTURE_UE_INTERNAL_PATH = re.compile(r"Texture2D'(.*)'") # NOTE: MAYBE \' IS ESC SEQUENCE
 RE_DEFINES_CHNL_COL = re.compile(r"p_([ABC])Color(.*)$")
 MAP_TEX_PARAM_NAME_TO_PART_ATTR = {"p_Normal": "nrm", "p_Diffuse": "dif", "p_Masks": "msk"}
 
@@ -106,7 +106,8 @@ class SkinGenerator():
 	skin_type = None
 
 	def __init__(self, logger, in_dir, out_dir, out_fmt, silence, flag, decalspec = None):
-		"""logger: Logger to be used by the skingenerator.
+		"""
+		logger: Logger to be used by the skingenerator.
 		in_dir: Input directory to be read from.
 		out_dir: Directory result files should be written to.
 		out_fmt: Format string to name the output files after.
@@ -186,12 +187,12 @@ class SkinGenerator():
 		for color in col_arr:
 			for shm in color:
 				draw_agent.rectangle(
-					(x_offset * 64 + 16 * (x_offset + 1), y_offset * 64 + 16 * (y_offset + 1),
-					((x_offset + 1) * 64) + 16 * x_offset, (y_offset + 1) * 64 + 16* y_offset),
+					(x_offset * 64 + 16 * (x_offset+1), y_offset * 64 + 16 * (y_offset+1),
+					((x_offset+1) * 64) + 16 * x_offset, (y_offset+1) * 64 + 16* y_offset),
 					fill = tuple([int(round(i)) for i in (shm[0], shm[1], shm[2], shm[3])])
 				)
 				draw_agent.text(
-					(x_offset * 64 + 16 * (x_offset + 1), y_offset * 64 + 16 * (y_offset + 1) + 64),
+					(x_offset * 64 + 16 * (x_offset+1), y_offset * 64 + 16 * (y_offset+1) + 64),
 					f"{color_names[cname_i]} {shm_names[sname_i]}",
 					fill = (0, 0, 0, 255)
 				)
@@ -335,10 +336,11 @@ class SkinGenerator():
 					self.logger.log(25, "Part has no decal associated with it.")
 				tmp = RE_TEXTURE_UE_INTERNAL_PATH.search(node.value)
 				if tmp is None:
-					self.logger.log(30, "Error while locating decal. Key found, but could not"
-						" determine image path.")
+					self.logger.log(30, "Error while locating decal. Key found, "
+						"but could not determine image path.")
 					break
-				decalimg = Path(self.in_dir, TEXTURE_FILE.format(tmp[1].split(UE_TEX_SEP)[-1]))
+				decalimg = Path(self.in_dir,
+					TEXTURE_FILE.format(tmp[1].split(UE_TEX_SEP)[-1]))
 				if not decalimg.exists():
 					self.logger.log(30, "Decal image not found on disk.")
 					return None
@@ -359,10 +361,11 @@ class SkinGenerator():
 		decalpath : str;pathlib.Path | Path to the decal image.
 		decalspec : bl2_skingen.decalspec.Decalspec | Decalspec
 			containing absolute pos transform values.
-		decal_color : numpy.ndarray[np.uint8, ndim = 1] | Numpy array containing
-			the coloring information for the decal in 4 ints, [R, G, B, A]
-		decal_area : numpy.ndarray[np.uint8, ndim = 1] | Numpy array containing
-			the decal area in 3 values.
+		decal_color : numpy.ndarray[np.uint8, ndim = 1] | Numpy array
+			containing the coloring information for the decal in 4 8bit
+			ints; [R, G, B, A]
+		decal_area : numpy.ndarray[np.uint8, ndim = 1] | Numpy array
+			containing the decal area in 3 values.
 		"""
 		decal_image = Image.open(decalpath)
 		processed_decal_arr = \
@@ -373,7 +376,8 @@ class SkinGenerator():
 				decal_area,
 				decalspec.posx, decalspec.posy,
 				decalspec.rot,
-				decalspec.scalex, decalspec.scaley)
+				decalspec.scalex, decalspec.scaley,
+				decalspec.repeat)
 		blend_inplace(processed_decal_arr, overlay_arr)
 		#raise NotImplementedError()
 
@@ -390,12 +394,14 @@ class SkinGenerator():
 
 		m_x, m_y = msk_img.size
 		if m_x != difx or m_y != dify:
-			self.logger.log(50, "Well this shouldn't happen but the dif and mask images are of"
-				" different sizes.")
+			self.logger.log(50, "Well this shouldn't happen but the dif "
+				"and mask images are of different sizes.")
 			sys.exit()
 
-		soft_mask = msk_img.resize((difx, dify), box = (0.0, 0.0, difx/2, float(dify)))
-		hard_mask = msk_img.resize((difx, dify), box = (difx/2, 0.0, float(difx), float(dify)))
+		soft_mask = msk_img.resize((difx, dify),
+			box = (0.0, 0.0, difx/2, float(dify)))
+		hard_mask = msk_img.resize((difx, dify),
+			box = (difx/2, 0.0, float(difx), float(dify)))
 
 		self.logger.log(20, f"Reading and converting part information...")
 		self._fill_part_attrs(part)
@@ -446,8 +452,9 @@ class SkinGenerator():
 		Asks user whether they want to overwrite an existing file or create
 		non-existing directories.
 		"""
-		f_stub = self.out_fmt.format(class_ = self.class_, skin = self.skin_name,
-				part = part.lwr, date = datetime.datetime.now().strftime("%d%m%Y-%H%M%S"))
+		f_stub = self.out_fmt.format(class_ = self.class_,
+			skin = self.skin_name, part = part.lwr,
+			date = datetime.datetime.now().strftime("%d%m%Y-%H%M%S"))
 		targetpath = Path(self.out_dir, (f_stub + ".png"))
 		if not self.out_dir.exists():
 			if not (self.flag & FLAGS.NO_ASK):
@@ -488,7 +495,7 @@ def main():
 	for pathsep in BAD_PATH_CHARS:
 		if pathsep in args.out_fmt:
 			SKINGEN_LOGGER.log(50, "Illegal characters in output file format! "
-				"Remove all occurrences of " + BAD_PATH_CHARS)
+				"Remove all occurrences of " + ", ".join(BAD_PATH_CHARS))
 			sys.exit()
 	try: # Test the outformat.
 		args.out_fmt.format(class_ = "test", skin = "test", part = "test", date = "test")
