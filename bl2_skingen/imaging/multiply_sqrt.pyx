@@ -12,7 +12,9 @@ ctypedef np.uint8_t DTYPE_t
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-cpdef np.ndarray[DTYPE_t, ndim = 3] multiply(np.ndarray[DTYPE_t, ndim = 3] top_img, np.ndarray[DTYPE_t, ndim = 3] base_img):
+cpdef np.ndarray[DTYPE_t, ndim = 3] multiply(
+		np.ndarray[DTYPE_t, ndim = 3] top_img,
+		np.ndarray[DTYPE_t, ndim = 3] base_img):
 	"""Blends top_img with base_img using multiply,
 	then takes the square root of the result, returning a numpy array.
 	Top image should be supplied as RGBA, base image as RGB.
@@ -42,8 +44,10 @@ cpdef np.ndarray[DTYPE_t, ndim = 3] multiply(np.ndarray[DTYPE_t, ndim = 3] top_i
 	for y in range(h):
 		for x in range(w):
 			for rgb in range(3):
-				tmp_col = sq_root[scale_int(top_img[y, x, rgb],
-					base_img[y, x, rgb])]
-				res[y, x, rgb] = (scale_int(top_img[y, x, 3], tmp_col) + scale_int((255 - top_img[y, x, 3]), base_img[y, x, rgb]))
+				tmp_col = sq_root[scale_int(top_img[y, x, rgb], base_img[y, x, rgb])]
+				res[y, x, rgb] = (
+					scale_int(top_img[y, x, 3], tmp_col) +
+					scale_int((255 - top_img[y, x, 3]), base_img[y, x, rgb])
+				)
 
 	return res

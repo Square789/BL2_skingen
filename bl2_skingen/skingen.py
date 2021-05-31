@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-# Borderlands 2 Skin generator, (c) 2019 - 2020 Square789
-# pylint: disable=import-error, no-name-in-module
+# Borderlands 2 Skin generator, (c) 2019 - 2021 Square789
 
 import sys
 import os
@@ -52,9 +51,9 @@ RE_TEXTURE_UE_INTERNAL_PATH = re.compile(r"Texture2D'(.*)'") # NOTE: MAYBE \' IS
 RE_DEFINES_CHNL_COL = re.compile(r"p_([ABC])Color(.*)$")
 MAP_TEX_PARAM_NAME_TO_PART_ATTR = {"p_Normal": "nrm", "p_Diffuse": "dif", "p_Masks": "msk"}
 
-MAP_COLOR_TO_IDX = {"A":0, "B":1, "C":2}
-MAP_NAME_TO_IDX = {"shadow":0, "midtone":1, "hilight":2}
-MAP_CHNL_TO_IDX = {"R":0, "G":1, "B":2, "A":3}
+MAP_COLOR_TO_IDX = {"A": 0, "B": 1, "C": 2}
+MAP_NAME_TO_IDX = {"shadow": 0, "midtone": 1, "hilight": 2}
+MAP_CHNL_TO_IDX = {"R": 0, "G": 1, "B": 2, "A": 3}
 
 DEF_DECAL_AREA = numpy.array([255, 255, 255], dtype = numpy.uint8)
 DEF_DECAL_COL = numpy.array([0, 0, 0, 255], dtype = numpy.uint8)
@@ -72,7 +71,7 @@ logging.getLogger().setLevel(0) # this magically works, whoop-de-doo
 class Bodypart():
 	"""
 	Small namespace for different files of Head/Body.
-	Name will be retrievable by t-he properties cap, lwr and upr.
+	Name will be retrievable by the properties cap, lwr and upr.
 	"""
 	props = None
 	unif_props = None
@@ -124,8 +123,7 @@ class SkinGenerator():
 		self.decalspec = decalspec
 
 		self.logger = logger
-		if silence > 3: silence = 3
-		self.logger.setLevel(21 + (silence * 3))
+		self.logger.setLevel(21 + (min(silence, 3) * 3))
 
 		for i in CLASSES:
 			if i in self.in_dir.stem:
@@ -368,18 +366,17 @@ class SkinGenerator():
 			containing the decal area in 3 values.
 		"""
 		decal_image = Image.open(decalpath)
-		processed_decal_arr = \
-			apply_decal(
-				decal_image,
-				hard_mask_arr,
-				decal_color,
-				decal_area,
-				decalspec.posx, decalspec.posy,
-				decalspec.rot,
-				decalspec.scalex, decalspec.scaley,
-				decalspec.repeat)
+		processed_decal_arr = apply_decal(
+			decal_image,
+			hard_mask_arr,
+			decal_color,
+			decal_area,
+			decalspec.posx, decalspec.posy,
+			decalspec.rot,
+			decalspec.scalex, decalspec.scaley,
+			decalspec.repeat
+		)
 		blend_inplace(processed_decal_arr, overlay_arr)
-		#raise NotImplementedError()
 
 	def _generate_image(self, part):
 		self.logger.log(20, f"Opening {part.dif}")
@@ -425,8 +422,7 @@ class SkinGenerator():
 			self.logger.log(25, f"Seeking decal...")
 			decalpath = self._get_decal(part)
 			if decalpath is not None:
-				self.logger.log(20, f"Decal found: {decalpath}")
-				self.logger.log(25, "Applying decal...")
+				self.logger.log(25, f"Applying decal from: {decalpath}")
 				self._stamp_decal(
 					overlay_arr,
 					hard_mask_arr,
@@ -435,7 +431,8 @@ class SkinGenerator():
 					decalpath,
 					parse_decalspec(
 						part.decalspec,
-						difx, dify)
+						difx, dify
+					)
 				)
 			else:
 				self.logger.log(25, "No decal found.")
@@ -452,9 +449,10 @@ class SkinGenerator():
 		Asks user whether they want to overwrite an existing file or create
 		non-existing directories.
 		"""
-		f_stub = self.out_fmt.format(class_ = self.class_,
-			skin = self.skin_name, part = part.lwr,
-			date = datetime.datetime.now().strftime("%d%m%Y-%H%M%S"))
+		f_stub = self.out_fmt.format(
+			class_ = self.class_, skin = self.skin_name, part = part.lwr,
+			date = datetime.datetime.now().strftime("%d%m%Y-%H%M%S")
+		)
 		targetpath = Path(self.out_dir, (f_stub + ".png"))
 		if not self.out_dir.exists():
 			if not (self.flag & FLAGS.NO_ASK):
@@ -469,7 +467,7 @@ class SkinGenerator():
 						break
 			os.makedirs(self.out_dir)
 		self.logger.log(25, f"Saving generated texture to {targetpath}")
-		if targetpath.exists() and (not (self.flag & FLAGS.NO_ASK)):
+		if targetpath.exists() and not (self.flag & FLAGS.NO_ASK):
 			self.logger.log(30, f"File {targetpath} already exists!")
 			while True:
 				userchoice = input("Overwrite it? (Y/N) > ").lower()
@@ -479,8 +477,6 @@ class SkinGenerator():
 					return
 				elif userchoice == "y":
 					break
-				else:
-					self.logger.log(50, "What"); sys.exit()
 		img.save(targetpath, format = "PNG")
 
 def main():
@@ -515,9 +511,11 @@ def main():
 			SKINGEN_LOGGER.log(30, "Bad decalspec, will ignore decal for this run.")
 			setattr(args, "decalspec", None)
 
-	sg = SkinGenerator(in_dir = args.in_, out_dir = args.out, out_fmt = args.out_fmt,
-			silence = (args.silence - (((flag & FLAGS.DEBUG) // FLAGS.DEBUG) * 2)), flag = flag,
-			logger = SKINGEN_LOGGER, decalspec = args.decalspec)
+	sg = SkinGenerator(
+		in_dir = args.input_dir, out_dir = args.out, out_fmt = args.out_fmt,
+		silence = args.silence - (((flag & FLAGS.DEBUG) // FLAGS.DEBUG) * 2), flag = flag,
+		logger = SKINGEN_LOGGER, decalspec = args.decalspec
+	)
 
 	sg.run()
 

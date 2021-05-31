@@ -17,7 +17,9 @@ cdef np.uint8_t _min(np.uint8_t a, np.uint8_t b):
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-cpdef np.ndarray[DTYPE_t, ndim = 3] darken(np.ndarray[DTYPE_t, ndim = 3] top_img, np.ndarray[DTYPE_t, ndim = 3] base_img):
+cpdef np.ndarray[DTYPE_t, ndim = 3] darken(
+		np.ndarray[DTYPE_t, ndim = 3] top_img,
+		np.ndarray[DTYPE_t, ndim = 3] base_img):
 	"""Overlays top_img with base_img, using the darken blend algorithm, returning a numpy array.
 	Top image should be supplied as RGBA, base image as RGB.
 	"""
@@ -31,7 +33,7 @@ cpdef np.ndarray[DTYPE_t, ndim = 3] darken(np.ndarray[DTYPE_t, ndim = 3] top_img
 		raise ValueError("Arrays must not be 0 in width or height!")
 
 	if top_img.shape[2] != 4:
-		raise ValueError("Top Array must specify 4-value arrays as its innermost layser; [RGBA]")
+		raise ValueError("Top Array must specify 4-value arrays as its innermost layer; [RGBA]")
 
 	if base_img.shape[2] != 3:
 		raise ValueError("Bottom array must specify 3-value arrays as its innermost layer; [RGB]")
@@ -47,6 +49,9 @@ cpdef np.ndarray[DTYPE_t, ndim = 3] darken(np.ndarray[DTYPE_t, ndim = 3] top_img
 		for x in range(w):
 			for rgb in range(3):
 				tmp_col = _min(top_img[y, x, rgb], base_img[y, x, rgb])
-				res[y, x, rgb] = (scale_int(top_img[y, x, 3], tmp_col) + scale_int((255 - top_img[y, x, 3]), base_img[y, x, rgb]))
+				res[y, x, rgb] = (
+					scale_int(top_img[y, x, 3], tmp_col) +
+					scale_int((255 - top_img[y, x, 3]), base_img[y, x, rgb])
+				)
 
 	return res

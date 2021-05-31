@@ -16,6 +16,6 @@ class SkingenLogFormatter(logging.Formatter):
 				pass
 			else:
 				re_res = int(re_res[1])
-				record.levelname = LEVELS[int(re_res / 10)] 
+				record.levelname = LEVELS[re_res // 10] 
 
 		return super().format(record)

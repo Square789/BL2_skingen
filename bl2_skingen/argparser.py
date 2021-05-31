@@ -14,10 +14,10 @@ def get_argparser():
 	"""
 	argparser = argparse.ArgumentParser(formatter_class = SkingenArgparseFormatter)
 
-	argparser.add_argument("-in", default = os.getcwd(), dest = "in_", help = \
+	argparser.add_argument("input_dir", help = \
 		"Input directory from the extracted Unreal Package. It should follow a " \
 		"format like CD_<Class>_Skin_<Skin_name>_SF.")
-	argparser.add_argument("-out", "-o", default = os.getcwd(), help = \
+	argparser.add_argument("-out", "-o", "-output_dir", default = os.getcwd(), help = \
 		"Directory to save generated files to.")
 	argparser.add_argument("-outname", default = "skin_{part}_{class_}", dest = "out_fmt", help = \
 		"Name of the output file. Will be .format()-ted with the following fed into it:\n"
@@ -47,7 +47,7 @@ def get_argparser():
 	argparser.add_argument("-keep-white", action = "append_const", dest = "flag",
 		const = FLAGS.KEEP_WHITE,
 		help = "As a hacky fix, if a color is too white (All channels > 235), its "
-		"alpha will be set to 0. The reason for this is that skins such as Krieg's "
+		"alpha will be set to 0. The reason for this is that skin such as Krieg's "
 		"or faces would appear way brighter than they should be. With this switch, "
 		"you can turn that behavior off.")
 	argparser.add_argument("-decalspec", dest = "decalspec", const = None, help = \
@@ -58,8 +58,8 @@ def get_argparser():
 		"    Rot   : Rotation of the decal around its center point.\n"
 		"    Scale : If only Scale0 is defined, factor to scale image by along both axes\n"
 		"        If Scale1 is defined, treat Scale0 as X- and Scale1 as Y-axis.\n"
-		"        If a scaling arg is < 0.05, the decalspec is deemed bad, as this may"
-		"        cause severe CPU load with repeat set to true."
+		"        If a scaling arg is < 0.05, the decalspec is deemed bad, as this may "
+		"cause severe CPU load with repeat set to true.\n"
 		"    Repeat: Repeat texture.\n"
 		"If a percent sign is set at the allowed positions, the preceding value will be "
 		"interpreted relatively to the decal dimensions.\n"

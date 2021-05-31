@@ -15,7 +15,7 @@ As such, lists may not contain other lists.
 
 import re
 
-RE_KEY = re.compile(r"[a-zA-Z0-9_]*")
+RE_KEY = re.compile(r"[a-zA-Z0-9_]+")
 RE_KEY_SUFFIX = re.compile(r"\[(\d*)\]")
 #RE_EQ = re.compile(r"\s*=\s*")
 # RE_EQ = re.compile(r"\s*=((?= \n))?(?(1).|\s*.)") # Weird cond lookahead relies on
@@ -125,15 +125,16 @@ class Parser():
 		while True:
 			self._skip_whitespace()
 			next_key = RE_KEY.search(self.raw_file, self.pos)
-			next_key_name = next_key[0]
-			self.pos += len(next_key_name)
-			next_key_idx = RE_KEY_SUFFIX.search(self.raw_file, self.pos)
-			if not next_key_idx:
-				raise UnrealNotationParseError(f"Index-less list key at around {self.pos}")
-			self.pos += len(next_key_idx[0])
-			next_key_idx = int(next_key_idx[1])
-			self._skip_eq()
-			res[next_key_idx] = next(iter(self._resolve_element(next_key_name, False, -1).values()))
+			if next_key is not None:
+				next_key_name = next_key[0]
+				self.pos += len(next_key_name)
+				next_key_idx = RE_KEY_SUFFIX.search(self.raw_file, self.pos)
+				if not next_key_idx:
+					raise UnrealNotationParseError(f"Index-less list key at around {self.pos}")
+				self.pos += len(next_key_idx[0])
+				next_key_idx = int(next_key_idx[1])
+				self._skip_eq()
+				res[next_key_idx] = next(iter(self._resolve_element(next_key_name, False, -1).values()))
 
 			self._skip_whitespace()
 			if self.raw_file[self.pos] == "}":
@@ -142,4 +143,3 @@ class Parser():
 			elif self.pos >= len(self.raw_file) - 1:
 				raise UnrealNotationParseError("EOF without closing list bracket")
 		return res
-
